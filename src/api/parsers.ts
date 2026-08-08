@@ -103,10 +103,22 @@ function pickCourseName(...cands: (string | undefined | null)[]): string {
 function cleanPlaceText(text: string): string {
   return text
     .replace(WEEK_RE, '')
-    .replace(/(?:第)?[0-9一二三四五六七八九十]+(?:[-~～至])?[0-9一二三四五六七八九十]*节/g, '')
+    .replace(
+      /(?:第)?[0-9一二三四五六七八九十]+节?(?:[-~～至])(?:第)?[0-9一二三四五六七八九十]+节|(?:第)?[0-9一二三四五六七八九十]+节/g,
+      '',
+    )
     .replace(DAY_RE, '')
     .replace(/[;；]\s*$/, '')
     .trim();
+}
+
+/** 从「时间 地点 老师」段中剥离时间和地点，提取教师名 */
+function extractTeacher(personText: string, timeText: string, placeSeg: string): string {
+  let t = personText;
+  if (timeText) t = t.replace(timeText, '');
+  const place = cleanPlaceText(placeSeg);
+  if (place) t = t.replace(place, '');
+  return t.replace(/[;；\s]+/g, ' ').trim();
 }
 
 export function parseCourseTableJson(raw: string): CourseTableData {
@@ -118,14 +130,17 @@ export function parseCourseTableJson(raw: string): CourseTableData {
     const timeFull = firstNonEmpty(st.dateTimeText?.textZh);
     const placeFull = firstNonEmpty(st.dateTimePlaceText?.textZh);
     const personFull = firstNonEmpty(st.dateTimePlacePersonText?.textZh);
-    // 一条记录可能含多个时间段（如「周一 第1-2节 南阶404;周三 第3-4节 南阶503」），按分号拆分
-    const segs = timeFull
-      .split(/[;；]/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (!segs.length) segs.push('');
-    const placeSegs = placeFull ? placeFull.split(/[;；]/).map((s) => s.trim()) : [];
-    const personSegs = personFull ? personFull.split(/[;；]/).map((s) => s.trim()) : [];
+    // 一条记录可能含多个时间段（如「周二 第1-2节;周五 第9-10节」），按分号/换行拆分
+    const splitSegs = (s: string) =>
+      s
+        .split(/[;；\n]/)
+        .map((x) => x.trim())
+        .filter(Boolean);
+    const timeSegs = splitSegs(timeFull);
+    const placeSegs = splitSegs(placeFull);
+    const personSegs = splitSegs(personFull);
+    // dateTimePlaceText 是逐段细分的（同周次不同教室会拆开），优先以其段数为主遍历
+    const segSource = placeSegs.length ? placeSegs : timeSegs.length ? timeSegs : [''];
 
     const nameZh = pickCourseName(
       (lesson.course as { nameZh?: string } | undefined)?.nameZh,
@@ -139,9 +154,13 @@ export function parseCourseTableJson(raw: string): CourseTableData {
       lesson.code as string,
     );
 
-    segs.forEach((timeText, idx) => {
-      const placeText = cleanPlaceText(firstNonEmpty(placeSegs[idx], placeFull));
-      const teacher = cleanPlaceText(firstNonEmpty(personSegs[idx], personFull));
+    segSource.forEach((seg, idx) => {
+      const placeRaw = cleanPlaceText(seg);
+      const placeText = placeRaw.replace(/\S{2,4}校区/g, '').trim();
+      const timeText = (placeRaw ? seg.replace(placeRaw, '') : seg)
+        .replace(/[;；\s]+/g, ' ')
+        .trim();
+      const teacher = extractTeacher(personSegs[idx] ?? '', timeText, seg);
       const weekMatch = timeText.match(WEEK_RE);
       const dayMatch = timeText.match(DAY_RE);
       const unit = parseUnitRange(timeText);
@@ -293,11 +312,11 @@ export function parseWeekRanges(weekText: string): WeekRange[] {
   const segs = text.split(/[,，、;；]/);
   const ranges: WeekRange[] = [];
   for (const seg of segs) {
-    const m = seg.trim().match(/^(\d+)(?:[-~—](\d+))?([()]?(\u5355|\u53cc))?$/);
+    const m = seg.trim().match(/^(\d+)(?:[-~—](\d+))?(?:[()]*(\u5355|\u53cc)[()]*)?$/);
     if (!m) continue;
     const from = Number(m[1]);
     const to = m[2] ? Number(m[2]) : from;
-    const parity = m[4];
+    const parity = m[3];
     ranges.push({ from, to, odd: parity === '单', even: parity === '双' });
   }
   return ranges;

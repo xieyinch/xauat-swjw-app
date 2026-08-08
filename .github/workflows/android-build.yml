@@ -11,22 +11,25 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   build-android:
     name: Build Android APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
@@ -45,9 +48,26 @@ jobs:
         run: ./gradlew assembleRelease
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: xauat-swjw-app-release
           path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish APK to Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: latest
+          name: 最新版 APK
+          body: |
+            自动构建的最新版 APK，随 master 分支推送自动更新。
+
+            安装后首次使用：打开 App，切到「课表」标签，按提示使用学校统一身份认证账号登录一次，课表/成绩/考试即全部可用；「通知」页无需登录。
+
+            构建提交：${{ github.sha }}
+            构建时间：${{ github.event.repository.updated_at }}
+          artifacts: "android/app/build/outputs/apk/release/*.apk"
+          allowUpdates: true
+          replacesArtifacts: true
+          token: ${{ secrets.GITHUB_TOKEN }}

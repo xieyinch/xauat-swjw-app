@@ -134,10 +134,9 @@ export function CourseTableScreen({ onSessionExpired }: Props) {
 
   const blocks = useMemo(() => {
     if (!table) return [];
-    const gridW = TIME_COL + 7 * colW;
-    const list: Array<
-      CourseLesson & { left: number; top: number; height: number; bg: string }
-    > = [];
+    type Item = CourseLesson & { day: number; start: number; end: number };
+    type Placed = CourseLesson & { left: number; top: number; width: number; height: number; bg: string };
+    const items: Item[] = [];
     for (const l of table.lessons) {
       const day = l.dayOfWeek ?? 0;
       const start = l.startUnit ?? 1;
@@ -145,16 +144,46 @@ export function CourseTableScreen({ onSessionExpired }: Props) {
       if (day < 1 || day > 7 || start < 1 || start > totalUnits || !inWeek(l.weekText, week)) {
         continue;
       }
-      list.push({
-        ...l,
-        left: TIME_COL + (day - 1) * colW,
-        top: HEADER_H + (start - 1) * ROW_H,
-        height: Math.min((end - start + 1) * ROW_H - GAP, (totalUnits - start + 1) * ROW_H - GAP),
-        bg: colorFor(l.nameZh),
-      });
+      items.push({ ...l, day, start, end });
     }
-    list.sort((a, b) => (a.startUnit ?? 99) - (b.startUnit ?? 99) || a.left - b.left);
-    return list;
+    const byDay = new Map<number, Item[]>();
+    for (const it of items) {
+      const list = byDay.get(it.day) ?? [];
+      list.push(it);
+      byDay.set(it.day, list);
+    }
+    const placed: Placed[] = [];
+    for (const [day, col] of byDay) {
+      const colX = TIME_COL + (day - 1) * colW;
+      // 同一时间重叠的课程归入同一组，组内平分列宽并排显示
+      col.sort((a, b) => a.start - b.start || a.end - b.end);
+      const groups: Array<Item[]> = [];
+      let groupMaxEnd = -1;
+      for (const it of col) {
+        if (it.start > groupMaxEnd) {
+          groups.push([it]);
+          groupMaxEnd = it.end;
+        } else {
+          groups[groups.length - 1].push(it);
+          if (it.end > groupMaxEnd) groupMaxEnd = it.end;
+        }
+      }
+      for (const g of groups) {
+        const w = colW / g.length;
+        g.forEach((it, i) => {
+          placed.push({
+            ...it,
+            left: colX + i * w,
+            top: HEADER_H + (it.start - 1) * ROW_H,
+            width: w - GAP,
+            height: Math.min((it.end - it.start + 1) * ROW_H - GAP, (totalUnits - it.start + 1) * ROW_H - GAP),
+            bg: colorFor(it.nameZh),
+          });
+        });
+      }
+    }
+    placed.sort((a, b) => (a.startUnit ?? 99) - (b.startUnit ?? 99) || a.left - b.left);
+    return placed;
   }, [table, week, colW, totalUnits]);
 
   const currentSemesterName = semesters.find((s) => s.id === semesterId)?.nameZh ?? '';
@@ -248,7 +277,6 @@ export function CourseTableScreen({ onSessionExpired }: Props) {
                 </View>
 
                 {blocks.map((b) => {
-                  const notThisWeek = !inWeek(b.weekText, table?.currentWeek ?? week);
                   const parity =
                     /单/.test(b.weekText) && !/双/.test(b.weekText)
                       ? '单周'
@@ -263,13 +291,12 @@ export function CourseTableScreen({ onSessionExpired }: Props) {
                         {
                           left: b.left,
                           top: b.top,
-                          width: colW - GAP,
+                          width: b.width,
                           height: b.height,
                           backgroundColor: b.bg,
                         },
                       ]}
                     >
-                      {notThisWeek ? <Text style={styles.badge}>[非本周]</Text> : null}
                       <Text style={styles.blockName} numberOfLines={4}>
                         {b.nameZh}
                       </Text>
@@ -388,7 +415,6 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     justifyContent: 'flex-start',
   },
-  badge: { fontSize: 9, color: 'rgba(255,255,255,0.92)', marginBottom: 1, fontWeight: '600' },
   blockName: { fontSize: 12, fontWeight: '700', color: '#fff', lineHeight: 15 },
   blockPlace: { fontSize: 10, color: 'rgba(255,255,255,0.95)', marginTop: 2 },
   blockParity: { fontSize: 9, color: 'rgba(255,255,255,0.8)', marginTop: 2 },

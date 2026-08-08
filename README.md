@@ -69,14 +69,17 @@ npx expo start --web
 
 ## 配置功能页地址
 
-`src/config/site.ts` 中集中维护各标签页的 URL。课表 / 成绩 / 考试目前默认指向教务系统门户首页，登录后可在首页菜单进入。
+`src/config/site.ts` 中集中维护各标签页的 URL，均已配置为可直接访问的功能页直达链接：
 
-如需为某标签页设置直达链接：用浏览器登录 `https://swjw.xauat.edu.cn/student/home`，点击对应菜单（如「课表」），把浏览器地址栏里的完整链接填入对应 `uri` 即可。
-
-| 配置项 | 默认值 | 说明 |
-| ------ | ------ | ---- |
-| `SITE.portal` | `https://swjw.xauat.edu.cn/student/home` | 教务系统门户 |
+| 配置项 | 地址 | 说明 |
+| ------ | ---- | ---- |
+| `SITE.portal` | `https://swjw.xauat.edu.cn/student/home` | 教务系统门户（统一身份认证登录） |
+| `SITE.courseTable` | `https://swjw.xauat.edu.cn/student/for-std/course-table` | 我的课表 |
+| `SITE.grade` | `https://swjw.xauat.edu.cn/student/for-std/grade/sheet` | 成绩信息（自动跳到当前学期） |
+| `SITE.exam` | `https://swjw.xauat.edu.cn/student/for-std/exam-arrange` | 考试安排（自动跳到当前学期） |
 | `SITE.noticeList` | `https://jwc.xauat.edu.cn/tzgg/jsxg.htm` | 教务处通知公告（公开） |
+
+> 教务系统使用学校**统一身份认证**（`authserver.xauat.edu.cn`）登录。首次使用需先在任意需登录的标签页登录一次，登录会话会在所有标签页共享并持久化；`课表 / 成绩 / 考试` 未登录时会自动跳转到登录页。
 
 ## 项目结构
 

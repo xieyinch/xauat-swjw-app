@@ -8,6 +8,12 @@
 export const SITE = {
   /** 教务系统门户（学生端），需登录 */
   portal: 'https://swjw.xauat.edu.cn/student/home',
+  /** 我的课表（需登录，走统一身份认证） */
+  courseTable: 'https://swjw.xauat.edu.cn/student/for-std/course-table',
+  /** 成绩信息（需登录，会自动跳转到当前学期） */
+  grade: 'https://swjw.xauat.edu.cn/student/for-std/grade/sheet',
+  /** 考试安排（需登录，会自动跳转到当前学期） */
+  exam: 'https://swjw.xauat.edu.cn/student/for-std/exam-arrange',
   /** 教务处公开网站（无需登录） */
   noticeBase: 'https://jwc.xauat.edu.cn',
   /** 教务处「通知公告」列表页（公开） */
@@ -40,7 +46,7 @@ export const TABS: TabItem[] = [
     title: '课表',
     icon: 'calendar-outline',
     activeIcon: 'calendar',
-    uri: SITE.portal,
+    uri: SITE.courseTable,
     requiresLogin: true,
   },
   {
@@ -48,7 +54,7 @@ export const TABS: TabItem[] = [
     title: '成绩',
     icon: 'school-outline',
     activeIcon: 'school',
-    uri: SITE.portal,
+    uri: SITE.grade,
     requiresLogin: true,
   },
   {
@@ -64,7 +70,7 @@ export const TABS: TabItem[] = [
     title: '考试',
     icon: 'time-outline',
     activeIcon: 'time',
-    uri: SITE.portal,
+    uri: SITE.exam,
     requiresLogin: true,
   },
 ];

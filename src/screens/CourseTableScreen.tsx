@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -10,7 +11,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { fetchCourseTable, fetchSemesters, resolveCurrentSemester } from '../api/data';
+import { fetchCourseTable, fetchCourseTableRaw, fetchSemesters, resolveCurrentSemester } from '../api/data';
 import { inWeek } from '../api/parsers';
 import type { CourseLesson, CourseTableData, Semester } from '../types';
 import { colors, spacing } from '../theme';
@@ -57,6 +58,19 @@ export function CourseTableScreen({ onSessionExpired }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [debugVisible, setDebugVisible] = useState(false);
+  const [debugText, setDebugText] = useState('');
+
+  const openDebug = useCallback(async () => {
+    if (semesterId == null) return;
+    try {
+      const raw = await fetchCourseTableRaw(semesterId);
+      setDebugText(raw.slice(0, 30000));
+    } catch (e) {
+      setDebugText(String((e as Error).message || e));
+    }
+    setDebugVisible(true);
+  }, [semesterId]);
 
   const loadSemesters = useCallback(async () => {
     try {
@@ -182,6 +196,9 @@ export function CourseTableScreen({ onSessionExpired }: Props) {
         >
           <Ionicons name="chevron-forward" size={20} color={!table || week >= table.totalWeeks ? colors.border : colors.primary} />
         </TouchableOpacity>
+        <TouchableOpacity style={styles.weekBtn} onPress={openDebug}>
+          <Ionicons name="bug-outline" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -240,7 +257,7 @@ export function CourseTableScreen({ onSessionExpired }: Props) {
                         : '';
                   return (
                     <View
-                      key={b.id}
+                      key={`${b.id}-${b.dayOfWeek ?? 0}-${b.startUnit ?? 0}`}
                       style={[
                         styles.lessonBlock,
                         {
@@ -274,6 +291,30 @@ export function CourseTableScreen({ onSessionExpired }: Props) {
           </View>
         </ScrollView>
       )}
+
+      <Modal
+        visible={debugVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDebugVisible(false)}
+      >
+        <View style={styles.debugMask}>
+          <View style={styles.debugPanel}>
+            <View style={styles.debugHeader}>
+              <Text style={styles.debugTitle}>课表接口原始数据</Text>
+              <TouchableOpacity onPress={() => setDebugVisible(false)}>
+                <Ionicons name="close" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.debugBody}>
+              <Text selectable style={styles.debugText}>
+                {debugText}
+              </Text>
+            </ScrollView>
+            <Text style={styles.debugHint}>长按文本可全选复制，粘贴给助手即可</Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -371,4 +412,43 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   retryText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  debugMask: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.md,
+  },
+  debugPanel: {
+    width: '100%',
+    maxHeight: '80%',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  debugHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  debugTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
+  debugBody: { flexShrink: 1 },
+  debugText: {
+    fontSize: 11,
+    color: colors.text,
+    padding: spacing.md,
+    fontFamily: 'monospace',
+  },
+  debugHint: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    paddingVertical: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
 });

@@ -82,6 +82,23 @@ function parseUnitRange(text: string): { startUnit?: number; endUnit?: number } 
   return { startUnit: start, endUnit: end };
 }
 
+/** 从多个候选字段中挑出「像课程名」的值：跳过班级合并名（含分号）、纯编号、无汉字文本 */
+function pickCourseName(...cands: (string | undefined | null)[]): string {
+  for (const c of cands) {
+    const s = (c ?? '').trim();
+    if (!s) continue;
+    if (/[;；]/.test(s)) continue;
+    if (/^\d/.test(s)) continue;
+    if (!/[\u4e00-\u9fa5]/.test(s)) continue;
+    return s;
+  }
+  for (const c of cands) {
+    const s = (c ?? '').trim();
+    if (s) return s;
+  }
+  return '';
+}
+
 /** 清理地点文本中残留的时间片段，避免「周二 第7-8节 1-16周」混入地点 */
 function cleanPlaceText(text: string): string {
   return text
@@ -95,41 +112,54 @@ function cleanPlaceText(text: string): string {
 export function parseCourseTableJson(raw: string): CourseTableData {
   const d = JSON.parse(raw);
   if (d.error) throw new Error(d.message || '课表数据异常');
-  const lessons: CourseLesson[] = (d.lessons ?? []).map((lesson: Record<string, unknown>) => {
+  const lessons: CourseLesson[] = [];
+  for (const lesson of (d.lessons ?? []) as Array<Record<string, unknown>>) {
     const st = (lesson.scheduleText ?? {}) as Record<string, { textZh?: string } | undefined>;
-    const timeText = firstNonEmpty(st.dateTimeText?.textZh);
-    const placeText = cleanPlaceText(
-      firstNonEmpty(
-        st.dateTimePlaceText?.textZh ? st.dateTimePlaceText.textZh.replace(timeText, '') : '',
-      ),
+    const timeFull = firstNonEmpty(st.dateTimeText?.textZh);
+    const placeFull = firstNonEmpty(st.dateTimePlaceText?.textZh);
+    const personFull = firstNonEmpty(st.dateTimePlacePersonText?.textZh);
+    // 一条记录可能含多个时间段（如「周一 第1-2节 南阶404;周三 第3-4节 南阶503」），按分号拆分
+    const segs = timeFull
+      .split(/[;；]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!segs.length) segs.push('');
+    const placeSegs = placeFull ? placeFull.split(/[;；]/).map((s) => s.trim()) : [];
+    const personSegs = personFull ? personFull.split(/[;；]/).map((s) => s.trim()) : [];
+
+    const nameZh = pickCourseName(
+      (lesson.course as { nameZh?: string } | undefined)?.nameZh,
+      lesson.lessonNameZh as string,
+      lesson.nameZh as string,
+      lesson.name as string,
+      lesson.courseName as string,
     );
-    const personText = firstNonEmpty(st.dateTimePlacePersonText?.textZh);
-    const teacher = firstNonEmpty(
-      personText
-        ? personText
-            .split(/[;\n]/)[0]
-            .replace(timeText, '')
-            .replace(placeText, '')
-        : '',
+    const code = firstNonEmpty(
+      (lesson.course as { code?: string } | undefined)?.code,
+      lesson.code as string,
     );
-    const weekMatch = timeText.match(WEEK_RE);
-    const dayMatch = timeText.match(DAY_RE);
-    const unit = parseUnitRange(timeText);
-    const nameZh = firstNonEmpty(lesson.nameZh as string);
-    return {
-      id: lesson.id as number,
-      nameZh,
-      code: firstNonEmpty(lesson.code as string),
-      scheduleText: timeText,
-      timeText,
-      placeText,
-      teacher,
-      weekText: weekMatch ? weekMatch[1] : '',
-      dayOfWeek: dayMatch ? WEEK_CN[dayMatch[1]] : undefined,
-      startUnit: unit.startUnit,
-      endUnit: unit.endUnit,
-    };
-  });
+
+    segs.forEach((timeText, idx) => {
+      const placeText = cleanPlaceText(firstNonEmpty(placeSegs[idx], placeFull));
+      const teacher = cleanPlaceText(firstNonEmpty(personSegs[idx], personFull));
+      const weekMatch = timeText.match(WEEK_RE);
+      const dayMatch = timeText.match(DAY_RE);
+      const unit = parseUnitRange(timeText);
+      lessons.push({
+        id: lesson.id as number,
+        nameZh,
+        code,
+        scheduleText: timeText,
+        timeText,
+        placeText,
+        teacher,
+        weekText: weekMatch ? weekMatch[1] : '',
+        dayOfWeek: dayMatch ? WEEK_CN[dayMatch[1]] : undefined,
+        startUnit: unit.startUnit,
+        endUnit: unit.endUnit,
+      });
+    });
+  }
   return {
     semesterId: d.semesterId as number,
     totalWeeks: Array.isArray(d.weekIndices) ? d.weekIndices.length : 0,

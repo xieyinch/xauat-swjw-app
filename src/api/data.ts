@@ -79,11 +79,15 @@ export function clearStudentInfoCache() {
   studentInfoPromise = null;
 }
 
-export async function fetchCourseTable(semesterId: number): Promise<CourseTableData> {
-  const raw = guardSession(
+/** 课表接口原始返回（调试用） */
+export async function fetchCourseTableRaw(semesterId: number): Promise<string> {
+  return guardSession(
     await webFetch(`${API.courseTableGetData}?bizTypeId=2&semesterId=${semesterId}`),
   );
-  return parseCourseTableJson(raw);
+}
+
+export async function fetchCourseTable(semesterId: number): Promise<CourseTableData> {
+  return parseCourseTableJson(await fetchCourseTableRaw(semesterId));
 }
 
 export async function fetchGrades(studentId: number, semesterId: number): Promise<GradeData> {

@@ -1,5 +1,7 @@
 # 西建大教务通 (XAUAT 教务通)
 
+[![Android APK](https://github.com/xieyinch/xauat-swjw-app/actions/workflows/android-build.yml/badge.svg)](https://github.com/xieyinch/xauat-swjw-app/actions/workflows/android-build.yml)
+
 面向西安建筑科技大学同学的**开源手机端教务助手**。基于 React Native (Expo) 开发，通过 WebView 封装教务处相关站点，无需逆向接口即可稳定使用，学校改版也不受影响。
 
 ## 功能

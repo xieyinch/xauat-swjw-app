@@ -81,7 +81,13 @@ export function CourseTableScreen({ onSessionExpired }: Props) {
       try {
         const data = await fetchCourseTable(sid);
         setTable(data);
-        setWeek((w) => (w > (data.totalWeeks || 1) ? 1 : w || 1));
+        const cw =
+          data.currentWeek && data.currentWeek <= (data.totalWeeks || 1) ? data.currentWeek : 1;
+        setWeek((w) => {
+          if (w > (data.totalWeeks || 1)) return cw;
+          if (w === 1) return cw;
+          return w;
+        });
       } catch (e) {
         if ((e as Error).name === 'SessionExpiredError') {
           onSessionExpired();

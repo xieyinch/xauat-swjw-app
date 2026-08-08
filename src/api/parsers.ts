@@ -62,14 +62,46 @@ function firstNonEmpty(...parts: (string | null | undefined)[]): string {
   return '';
 }
 
+const WEEK_RE = /([0-9~\-－～,，、;；()（）\u5355\u53cc]+周)/;
+const DAY_RE = /(?:星期|周)([一二三四五六日天])/;
+
+/** 解析「第7-8节」「第七节~第八节」「1-2节」「第3节」等节次写法 */
+function parseUnitRange(text: string): { startUnit?: number; endUnit?: number } {
+  const toInt = (s?: string): number | undefined =>
+    s == null || s === ''
+      ? undefined
+      : /[一二三四五六七八九十]/.test(s)
+        ? cnNumberToInt(s)
+        : Number(s);
+  const m =
+    text.match(/(?:第)?([0-9一二三四五六七八九十]+)(?:节)?(?:[-~～至])(?:第)?([0-9一二三四五六七八九十]+)节/) ||
+    text.match(/(?:第)?([0-9一二三四五六七八九十]+)节/);
+  if (!m) return {};
+  const start = toInt(m[1]);
+  const end = toInt(m[2]) ?? start;
+  return { startUnit: start, endUnit: end };
+}
+
+/** 清理地点文本中残留的时间片段，避免「周二 第7-8节 1-16周」混入地点 */
+function cleanPlaceText(text: string): string {
+  return text
+    .replace(WEEK_RE, '')
+    .replace(/(?:第)?[0-9一二三四五六七八九十]+(?:[-~～至])?[0-9一二三四五六七八九十]*节/g, '')
+    .replace(DAY_RE, '')
+    .replace(/[;；]\s*$/, '')
+    .trim();
+}
+
 export function parseCourseTableJson(raw: string): CourseTableData {
   const d = JSON.parse(raw);
   if (d.error) throw new Error(d.message || '课表数据异常');
   const lessons: CourseLesson[] = (d.lessons ?? []).map((lesson: Record<string, unknown>) => {
     const st = (lesson.scheduleText ?? {}) as Record<string, { textZh?: string } | undefined>;
     const timeText = firstNonEmpty(st.dateTimeText?.textZh);
-    const placeText = firstNonEmpty(
-      st.dateTimePlaceText?.textZh ? st.dateTimePlaceText.textZh.replace(timeText, '') : '',
+    const placeText = cleanPlaceText(
+      firstNonEmpty(
+        st.dateTimePlaceText?.textZh ? st.dateTimePlaceText.textZh.replace(timeText, '') : '',
+      ),
     );
     const personText = firstNonEmpty(st.dateTimePlacePersonText?.textZh);
     const teacher = firstNonEmpty(
@@ -80,9 +112,9 @@ export function parseCourseTableJson(raw: string): CourseTableData {
             .replace(placeText, '')
         : '',
     );
-    const weekMatch = timeText.match(/([\d~,()（）单双]+周)/);
-    const dayMatch = timeText.match(/周([一二三四五六日天])/);
-    const unitMatch = timeText.match(/第([一二三四五六七八九十]+)节~?第?([一二三四五六七八九十]*)节/);
+    const weekMatch = timeText.match(WEEK_RE);
+    const dayMatch = timeText.match(DAY_RE);
+    const unit = parseUnitRange(timeText);
     const nameZh = firstNonEmpty(lesson.nameZh as string);
     return {
       id: lesson.id as number,
@@ -94,8 +126,8 @@ export function parseCourseTableJson(raw: string): CourseTableData {
       teacher,
       weekText: weekMatch ? weekMatch[1] : '',
       dayOfWeek: dayMatch ? WEEK_CN[dayMatch[1]] : undefined,
-      startUnit: unitMatch ? cnNumberToInt(unitMatch[1]) : undefined,
-      endUnit: unitMatch && unitMatch[2] ? cnNumberToInt(unitMatch[2]) : undefined,
+      startUnit: unit.startUnit,
+      endUnit: unit.endUnit,
     };
   });
   return {

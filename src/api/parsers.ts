@@ -1,0 +1,249 @@
+import type {
+  CourseLesson,
+  CourseTableData,
+  ExamItem,
+  GradeData,
+  NoticeItem,
+  Semester,
+} from '../types';
+
+const WEEK_CN: Record<string, number> = {
+  一: 1,
+  二: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  日: 7,
+  天: 7,
+};
+
+const UNIT_CN: Record<string, number> = {
+  一: 1,
+  二: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  七: 7,
+  八: 8,
+  九: 9,
+  十: 10,
+};
+
+function cnNumberToInt(s: string): number {
+  if (!s) return 0;
+  if (s === '十') return 10;
+  if (s.startsWith('十')) return 10 + (UNIT_CN[s[1]] ?? 0);
+  if (s.endsWith('十')) return (UNIT_CN[s[0]] ?? 1) * 10;
+  let sum = 0;
+  for (const ch of s) {
+    if (ch === '十') {
+      sum = sum === 0 ? 10 : sum * 10;
+    } else {
+      sum += UNIT_CN[ch] ?? 0;
+    }
+  }
+  return sum;
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function firstNonEmpty(...parts: (string | null | undefined)[]): string {
+  for (const p of parts) {
+    if (p && p.trim()) return p.trim();
+  }
+  return '';
+}
+
+export function parseCourseTableJson(raw: string): CourseTableData {
+  const d = JSON.parse(raw);
+  if (d.error) throw new Error(d.message || '课表数据异常');
+  const lessons: CourseLesson[] = (d.lessons ?? []).map((lesson: Record<string, unknown>) => {
+    const st = (lesson.scheduleText ?? {}) as Record<string, { textZh?: string } | undefined>;
+    const timeText = firstNonEmpty(st.dateTimeText?.textZh);
+    const placeText = firstNonEmpty(
+      st.dateTimePlaceText?.textZh ? st.dateTimePlaceText.textZh.replace(timeText, '') : '',
+    );
+    const personText = firstNonEmpty(st.dateTimePlacePersonText?.textZh);
+    const teacher = firstNonEmpty(
+      personText
+        ? personText
+            .split(/[;\n]/)[0]
+            .replace(timeText, '')
+            .replace(placeText, '')
+        : '',
+    );
+    const weekMatch = timeText.match(/([\d~,()（）单双]+周)/);
+    const dayMatch = timeText.match(/周([一二三四五六日天])/);
+    const unitMatch = timeText.match(/第([一二三四五六七八九十]+)节~?第?([一二三四五六七八九十]*)节/);
+    const nameZh = firstNonEmpty(lesson.nameZh as string);
+    return {
+      id: lesson.id as number,
+      nameZh,
+      code: firstNonEmpty(lesson.code as string),
+      scheduleText: timeText,
+      timeText,
+      placeText,
+      teacher,
+      weekText: weekMatch ? weekMatch[1] : '',
+      dayOfWeek: dayMatch ? WEEK_CN[dayMatch[1]] : undefined,
+      startUnit: unitMatch ? cnNumberToInt(unitMatch[1]) : undefined,
+      endUnit: unitMatch && unitMatch[2] ? cnNumberToInt(unitMatch[2]) : undefined,
+    };
+  });
+  return {
+    semesterId: d.semesterId as number,
+    totalWeeks: Array.isArray(d.weekIndices) ? d.weekIndices.length : 0,
+    currentWeek: Number(d.currentWeek ?? 1),
+    lessons,
+  };
+}
+
+export function parseGradeJson(raw: string, semesterId: number): GradeData {
+  const d = JSON.parse(raw);
+  const semesterName =
+    (d.id2semesters && d.id2semesters[semesterId]?.nameZh) ||
+    (Array.isArray(d.semesters) && d.semesters.find((s: Semester) => s.id === semesterId)?.nameZh) ||
+    '';
+  const map = d.semesterId2studentGrades ?? {};
+  const list = map[semesterId] ?? [];
+  const items = list.map((g: Record<string, unknown>) => {
+    const course = (g.course ?? {}) as { nameZh?: string; code?: string; credits?: number };
+    const courseName =
+      course.nameZh || (g.lessonNameZh as string) || '';
+    return {
+      courseName,
+      courseCode: course.code,
+      credits: typeof course.credits === 'number' ? course.credits : undefined,
+      score: g.gaGrade != null ? String(g.gaGrade) : '未公布',
+      gradePoint: typeof g.gp === 'number' ? g.gp : undefined,
+      passed: g.passed as boolean,
+      published: g.published as boolean,
+      courseType: g.courseType as string,
+      semesterName,
+    };
+  });
+  return { semesterId, semesterName, items };
+}
+
+export function parseExamHtml(html: string): ExamItem[] {
+  const items: ExamItem[] = [];
+  const trRe = /<tr>([\s\S]*?)<\/tr>/g;
+  let trm: RegExpExecArray | null;
+  while ((trm = trRe.exec(html))) {
+    const tr = trm[1];
+    if (!/<td/.test(tr)) continue;
+    const tds: string[] = [];
+    const tdRe = /<td[^>]*>([\s\S]*?)<\/td>/g;
+    let tdm: RegExpExecArray | null;
+    while ((tdm = tdRe.exec(tr))) tds.push(tdm[1]);
+    if (tds.length < 5) continue;
+    const courseName = stripHtml(tds[0]);
+    const dateTime = stripHtml(tds[1]);
+    const place = stripHtml(tds[2]);
+    const seat = stripHtml(tds[3]);
+    const building = stripHtml(tds[4]);
+    const campus = stripHtml(tds[5] ?? '');
+    if (!courseName) continue;
+    items.push({
+      courseName,
+      dateTime,
+      place,
+      building,
+      campus,
+      seatNo: seat || undefined,
+    });
+  }
+  return items;
+}
+
+export function parseNoticeHtml(html: string, listUrl: string): NoticeItem[] {
+  const items: NoticeItem[] = [];
+  const liRe = /<li[^>]*>([\s\S]*?)<\/li>/g;
+  let m: RegExpExecArray | null;
+  while ((m = liRe.exec(html))) {
+    const li = m[1];
+    const a = li.match(/<a[^>]*href="([^"]*)"[^>]*title="([^"]*)"/) || li.match(/<a[^>]*href="([^"]*)"[^>]*>/);
+    if (!a) continue;
+    const href = a[1];
+    if (!href || !/news|\.jsp|\.htm|\.html/i.test(href)) continue;
+    const title = stripHtml(a[2] ?? li);
+    const titleM = li.match(/<h2[^>]*>([\s\S]*?)<\/h2>/);
+    const titleText = titleM ? stripHtml(titleM[1]) : title;
+    const dateM = li.match(/<span[^>]*>(\d{4}-\d{2}-\d{2})<\/span>/);
+    const date = dateM ? dateM[1] : '';
+    if (!titleText) continue;
+    const url = new URL(href, listUrl).href;
+    const idM = url.match(/wbnewsid=(\d+)/);
+    items.push({ id: idM ? idM[1] : url, title: titleText, date, href, url });
+  }
+  return items;
+}
+
+export function parseSemestersFromCourseTable(html: string): Semester[] {
+  const m = html.match(/semesters = JSON\.parse\(\s*'([^']+)'\s*\)/);
+  if (!m) return [];
+  const raw = m[1].replace(/\\"/g, '"');
+  let arr: Array<Record<string, unknown>> = [];
+  try {
+    arr = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  return arr.map((s) => ({
+    id: Number(s.id),
+    nameZh: String(s.nameZh ?? s.name ?? ''),
+    startDate: (s.startDate as string) ?? undefined,
+    endDate: (s.endDate as string) ?? undefined,
+  }));
+}
+
+export function extractStudentId(html: string): number | null {
+  const m = html.match(/var studentId\s*=\s*(\d+)/) || html.match(/studentId['"]\s*:\s*(\d+)/);
+  return m ? Number(m[1]) : null;
+}
+
+export function extractStudentNameStdNo(html: string): { name: string; stdNo: string } | null {
+  const m = html.match(/<h2[^>]*class="info-title"[^>]*>([\s\S]*?)<\/h2>/);
+  if (!m) return null;
+  const text = stripHtml(m[1]);
+  const m2 = text.match(/([\u4e00-\u9fa5]+)\((\d+)\)/);
+  return m2 ? { name: m2[1], stdNo: m2[2] } : null;
+}
+
+interface WeekRange {
+  from: number;
+  to: number;
+  odd?: boolean;
+  even?: boolean;
+}
+
+/** 解析「1-16周」「12~14(双),15周」为周次区间集合 */
+export function parseWeekRanges(weekText: string): WeekRange[] {
+  const text = (weekText || '').replace(/周/g, '').replace(/[（）]/g, (m) => (m === '（' ? '(' : ')'));
+  const segs = text.split(/[,，、;；]/);
+  const ranges: WeekRange[] = [];
+  for (const seg of segs) {
+    const m = seg.trim().match(/^(\d+)(?:[-~—](\d+))?([()]?(\u5355|\u53cc))?$/);
+    if (!m) continue;
+    const from = Number(m[1]);
+    const to = m[2] ? Number(m[2]) : from;
+    const parity = m[4];
+    ranges.push({ from, to, odd: parity === '单', even: parity === '双' });
+  }
+  return ranges;
+}
+
+export function inWeek(weekText: string, week: number): boolean {
+  return parseWeekRanges(weekText).some(
+    (r) => week >= r.from && week <= r.to && (!r.odd || week % 2 === 1) && (!r.even || week % 2 === 0),
+  );
+}
+

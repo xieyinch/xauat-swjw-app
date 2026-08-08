@@ -29,43 +29,6 @@
 - react-native-webview 13
 - TypeScript
 
-## 运行
-
-### 方式一：Expo Go（最快，手机体验）
-1. 手机安装 [Expo Go](https://expo.dev/go)
-2. 项目根目录执行：
-
-   ```bash
-   npm install
-   npx expo start
-   ```
-
-3. 手机与电脑在同一局域网，用 Expo Go 扫码即可打开
-
-### 方式二：原生构建
-
-```bash
-npm install
-npx expo run:android   # Android（需要 Android Studio）
-npx expo run:ios       # iOS（需要 macOS + Xcode）
-```
-
-### 方式三：Web 预览（仅界面预览）
-
-```bash
-npx expo start --web
-```
-
-> 注意：教务处官网（jwc.xauat.edu.cn）设置了 `X-Frame-Options`，在 Web 预览的 iframe 中会被浏览器拦截，属正常现象；原生 App 的 WebView 直接加载页面，不受影响。
-
-## 自动化构建 APK（GitHub Actions）
-
-仓库已内置 `.github/workflows/android-build.yml`：推送到 `master` / `main` 分支（或手动触发 workflow）后，GitHub 云端会自动执行 `expo prebuild` 并编译出 Android release APK。
-
-1. 推送代码后，到仓库 **Actions** 页签查看构建进度
-2. 构建成功后，在对应构建记录底部的 **Artifacts** 中下载 `xauat-swjw-app-release`，其中的 `app-release.apk` 即为安装包
-
-> 默认使用 debug 签名密钥，可直接安装到手机；发布正式版时建议在 `android/app/build.gradle` 中配置正式签名。
 
 ## 配置功能页地址
 

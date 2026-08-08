@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "西建大教务通",
+    "slug": "xauat-swjw-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "xauatswjw",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.xauat.swjw"
+    },
+    "android": {
+      "package": "com.xauat.swjw",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

@@ -13,10 +13,9 @@ interface Props {
   onLogout: () => void;
 }
 
-// 课表、成绩、通知、考试已有底部导航：首页只保留额外服务入口，避免重复。
+// 课表、成绩、通知、考试已有底部导航：首页只保留额外服务入口。
 const ENTRIES = [
   { key: 'sports', label: '体育馆预约', icon: 'basketball-outline', color: '#F97316' },
-  { key: 'payment', label: '缴费大厅', icon: 'card-outline', color: '#06B6D4' },
 ];
 
 const WEEK_LABELS: Record<number, string> = {
@@ -84,6 +83,6 @@ export function HomeScreen({ user, onNavigate, onSessionExpired, onLogout }: Pro
 const styles = StyleSheet.create({
   container:{flex:1,backgroundColor:colors.background}, content:{padding:spacing.lg,gap:spacing.lg},
   studentCard:{flexDirection:'row',alignItems:'center',backgroundColor:colors.surface,borderRadius:16,padding:spacing.lg}, avatar:{width:48,height:48,borderRadius:24,backgroundColor:colors.primary,alignItems:'center',justifyContent:'center',marginRight:spacing.md}, avatarText:{color:'#fff',fontSize:20,fontWeight:'700'}, studentInfo:{flex:1}, studentName:{fontSize:17,fontWeight:'700',color:colors.text}, studentMeta:{fontSize:12,color:colors.textSecondary,marginTop:3}, logoutBtn:{padding:spacing.sm},
-  entryGrid:{flexDirection:'row',gap:spacing.md}, entry:{flex:1,backgroundColor:colors.surface,borderRadius:14,paddingVertical:spacing.lg,alignItems:'center',gap:spacing.sm}, entryIcon:{width:48,height:48,borderRadius:24,alignItems:'center',justifyContent:'center'}, entryLabel:{fontSize:13,color:colors.text,fontWeight:'600'},
+  entryGrid:{flexDirection:'row'}, entry:{flex:1,backgroundColor:colors.surface,borderRadius:14,paddingVertical:spacing.lg,alignItems:'center',gap:spacing.sm}, entryIcon:{width:48,height:48,borderRadius:24,alignItems:'center',justifyContent:'center'}, entryLabel:{fontSize:13,color:colors.text,fontWeight:'600'},
   section:{gap:spacing.sm}, sectionHeader:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}, sectionTitle:{fontSize:16,fontWeight:'700',color:colors.text}, sectionSub:{fontSize:13,color:colors.textSecondary}, sectionCenter:{alignItems:'center',justifyContent:'center',padding:spacing.lg,gap:spacing.sm}, sectionEmpty:{fontSize:13,color:colors.textSecondary}, retryText:{fontSize:13,color:colors.primary,fontWeight:'600'}, lessonCard:{flexDirection:'row',backgroundColor:colors.surface,borderRadius:12,padding:spacing.md,borderLeftWidth:3,borderLeftColor:colors.primary}, unitBadge:{width:28,height:28,borderRadius:14,backgroundColor:colors.primary,alignItems:'center',justifyContent:'center',marginRight:spacing.md}, unitText:{color:'#fff',fontSize:13,fontWeight:'700'}, lessonBody:{flex:1}, lessonName:{fontSize:14,fontWeight:'600',color:colors.text}, lessonMeta:{fontSize:12,color:colors.textSecondary,marginTop:3},
 });

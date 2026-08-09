@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { fetchCourseTable, fetchCourseTableRaw, fetchSemesters, resolveCurrentSemester } from '../api/data';
 import { inWeek } from '../api/parsers';
+import { refreshCourseWidget } from '../widget/courseWidget';
 import type { CourseLesson, CourseTableData, Semester } from '../types';
 import { colors, spacing } from '../theme';
 
@@ -95,6 +96,7 @@ export function CourseTableScreen({ onSessionExpired }: Props) {
       try {
         const data = await fetchCourseTable(sid);
         setTable(data);
+        refreshCourseWidget(data);
         const cw =
           data.currentWeek && data.currentWeek <= (data.totalWeeks || 1) ? data.currentWeek : 1;
         setWeek((w) => {

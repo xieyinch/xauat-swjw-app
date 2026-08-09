@@ -10,6 +10,11 @@ interface Props {
   onClose: () => void;
 }
 
+// 微微校缴费页面会根据 UA 判断是否处于微信内置浏览器。
+// 普通 WebView 会被引导到二维码页，因此仅对缴费大厅模拟微信 Android WebView 环境。
+const WECHAT_ANDROID_UA =
+  'Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/116.0.0.0 Mobile Safari/537.36 XWEB/1160117 MMWEBSDK/20230805 MMWEBID/123 MicroMessenger/8.0.42.2460(0x28002A3B) WeChat/arm64 Weixin NetType/WIFI Language/zh_CN ABI/arm64';
+
 export function PaymentScreen({ onClose }: Props) {
   const webViewRef = useRef<PortalWebViewHandle>(null);
   const [canGoBack, setCanGoBack] = useState(false);
@@ -63,6 +68,7 @@ export function PaymentScreen({ onClose }: Props) {
       <PortalWebView
         ref={webViewRef}
         uri={SITE.payment}
+        userAgent={WECHAT_ANDROID_UA}
         onNavigationStateChange={handleNav}
       />
     </View>

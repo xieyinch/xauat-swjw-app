@@ -101,7 +101,7 @@ export function LoginScreen({
         </TouchableOpacity>
 
         <Text style={styles.tip}>
-          使用学校统一身份认证账号登录，登录一次即可在 App 内查看课表、成绩与考试安排。凭据仅用于本次登录，不会保存在设备上。
+          使用学校统一身份认证账号登录。登录成功后账号密码会保存在设备安全存储区，用于会话过期后自动重新登录；退出登录会清除。
         </Text>
       </View>
     </KeyboardAvoidingView>

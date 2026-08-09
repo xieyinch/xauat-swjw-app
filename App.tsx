@@ -6,7 +6,16 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { attachWebView, handleWebViewMessage, markWebReady } from './src/api/bridge';
 import { clearStudentInfoCache } from './src/api/data';
-import { clearUser, loadUser, saveUser, type StoredUser } from './src/api/storage';
+import {
+  clearCredentials,
+  clearUser,
+  loadCredentials,
+  loadUser,
+  saveCredentials,
+  saveUser,
+  type StoredCredentials,
+  type StoredUser,
+} from './src/api/storage';
 import { BottomTabBar } from './src/components/BottomTabBar';
 import { SITE, TABS } from './src/config/site';
 import { CourseTableScreen } from './src/screens/CourseTableScreen';
@@ -37,19 +46,44 @@ export default function App() {
   const usernameRef = useRef('');
   const passwordRef = useRef('');
   const currentUrlRef = useRef('');
+  const credentialsRef = useRef<StoredCredentials | null>(null);
+  const bootReadyRef = useRef(false);
+  const lastAutoLoginRef = useRef(0);
 
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
 
-  const handleSessionExpired = useCallback(() => {
-    setPhase('login');
-    setLoginError('登录已过期，请重新登录');
+  const startAutoLogin = useCallback(() => {
+    setLoginError(null);
+    setPhase('logging');
   }, []);
 
+  const autoRelogin = useCallback(() => {
+    const c = credentialsRef.current;
+    const now = Date.now();
+    if (c && now - lastAutoLoginRef.current > 3 * 60 * 1000) {
+      lastAutoLoginRef.current = now;
+      usernameRef.current = c.stdNo;
+      passwordRef.current = c.password;
+      setUsername(c.stdNo);
+      setPassword(c.password);
+      setLoginError(null);
+      setPhase('logging');
+    } else {
+      setPhase('login');
+      setLoginError('登录已过期，请重新登录');
+    }
+  }, []);
+
+  const handleSessionExpired = useCallback(() => {
+    autoRelogin();
+  }, [autoRelogin]);
+
   const handleLogout = useCallback(async () => {
-    await clearUser();
+    await Promise.all([clearUser(), clearCredentials()]);
     clearStudentInfoCache();
+    credentialsRef.current = null;
     setUser(null);
     setUsername('');
     setPassword('');
@@ -59,30 +93,41 @@ export default function App() {
     setPhase('login');
   }, []);
 
-  const handleNav = useCallback((nav: { url: string }) => {
-    currentUrlRef.current = nav.url;
-    const ph = phaseRef.current;
-    if (ph === 'boot') {
-      if (nav.url.startsWith(SITE.swjw)) {
-        markWebReady();
-        setPhase('main');
-      } else if (nav.url.includes('authserver')) {
-        setPhase('login');
+  const handleNav = useCallback(
+    (nav: { url: string }) => {
+      currentUrlRef.current = nav.url;
+      const ph = phaseRef.current;
+      if (ph === 'boot') {
+        if (!bootReadyRef.current) return;
+        if (nav.url.startsWith(SITE.swjw)) {
+          markWebReady();
+          setPhase('main');
+        } else if (nav.url.includes('authserver')) {
+          if (credentialsRef.current) startAutoLogin();
+          else setPhase('login');
+        }
+      } else if (ph === 'logging') {
+        if (nav.url.startsWith(SITE.swjw)) {
+          const stdNo = usernameRef.current.trim();
+          const pw = passwordRef.current;
+          saveUser({ stdNo, name: '' });
+          if (stdNo && pw) {
+            const c = { stdNo, password: pw };
+            credentialsRef.current = c;
+            saveCredentials(c);
+          }
+          setLoginError(null);
+          markWebReady();
+          setPhase('main');
+        }
+      } else if (ph === 'main') {
+        if (nav.url.includes('authserver')) {
+          autoRelogin();
+        }
       }
-    } else if (ph === 'logging') {
-      if (nav.url.startsWith(SITE.swjw)) {
-        saveUser({ stdNo: usernameRef.current.trim(), name: '' });
-        setLoginError(null);
-        markWebReady();
-        setPhase('main');
-      }
-    } else if (ph === 'main') {
-      if (nav.url.includes('authserver')) {
-        setPhase('login');
-        setLoginError('登录已过期，请重新登录');
-      }
-    }
-  }, []);
+    },
+    [startAutoLogin, autoRelogin],
+  );
 
   const injectAutoLogin = useCallback(() => {
     const wv = webViewRef.current;
@@ -160,16 +205,36 @@ export default function App() {
   );
 
   useEffect(() => {
-    loadUser().then((u) => setUser(u));
-  }, []);
-
-  useEffect(() => {
-    if (phase !== 'boot') return;
-    const timer = setTimeout(() => {
-      setPhase((p) => (p === 'boot' ? 'login' : p));
-    }, 12000);
-    return () => clearTimeout(timer);
-  }, [phase]);
+    let cancelled = false;
+    (async () => {
+      const [u, c] = await Promise.all([loadUser(), loadCredentials()]);
+      if (cancelled) return;
+      setUser(u);
+      credentialsRef.current = c;
+      if (c) {
+        usernameRef.current = c.stdNo;
+        passwordRef.current = c.password;
+        setUsername(c.stdNo);
+        setPassword(c.password);
+      }
+      bootReadyRef.current = true;
+      const url = currentUrlRef.current;
+      if (url.startsWith(SITE.swjw)) {
+        // 会话 cookie 仍有效，直接进入主界面
+        markWebReady();
+        setPhase('main');
+      } else if (url.includes('authserver')) {
+        if (c) startAutoLogin();
+        else setPhase('login');
+      } else {
+        // 未完成导航：有凭据则直接自动登录，否则进入登录页
+        setPhase(c ? 'logging' : 'login');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [startAutoLogin]);
 
   const handleLoginSubmit = useCallback(() => {
     if (!usernameRef.current.trim() || !passwordRef.current) return;

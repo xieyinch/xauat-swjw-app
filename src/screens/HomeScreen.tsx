@@ -19,6 +19,7 @@ const ENTRIES = [
   { key: 'exam', label: '考试安排', icon: 'time-outline', color: '#F59E0B' },
   { key: 'notice', label: '通知公告', icon: 'notifications-outline', color: '#7C5CFC' },
   { key: 'sports', label: '体育馆预约', icon: 'basketball-outline', color: '#F97316' },
+  { key: 'payment', label: '缴费大厅', icon: 'card-outline', color: '#0EA5E9' },
 ];
 
 const WEEK_LABELS: Record<number, string> = {

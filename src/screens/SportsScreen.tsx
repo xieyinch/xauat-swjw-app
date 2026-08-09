@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useRef, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { BackHandler, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { WebViewNavigation } from 'react-native-webview';
 import { PortalWebView, PortalWebViewHandle } from '../components/PortalWebView';
 import { SITE } from '../config/site';
@@ -13,10 +13,27 @@ interface Props {
 export function SportsScreen({ onClose }: Props) {
   const webViewRef = useRef<PortalWebViewHandle>(null);
   const [canGoBack, setCanGoBack] = useState(false);
+  const canGoBackRef = useRef(false);
 
-  const handleNav = (nav: WebViewNavigation) => {
+  const handleNav = useCallback((nav: WebViewNavigation) => {
+    canGoBackRef.current = nav.canGoBack;
     setCanGoBack(nav.canGoBack);
-  };
+  }, []);
+
+  const handleBack = useCallback(() => {
+    if (canGoBackRef.current) {
+      webViewRef.current?.goBack();
+    } else {
+      onClose();
+    }
+    return true;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', handleBack);
+    return () => subscription.remove();
+  }, [handleBack]);
 
   return (
     <View style={styles.container}>

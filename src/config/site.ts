@@ -13,6 +13,8 @@ export const SITE = {
   noticeList: 'https://jwc.xauat.edu.cn/tzgg/jsxg.htm',
   /** 体育馆预约系统（SPA，CAS 统一认证，与教务共用登录态） */
   sports: 'https://sports.xauat.edu.cn/#/',
+  /** 校园缴费大厅 */
+  payment: 'http://wx.weiweixiao.net/index.php/Wap/Index/columns.html?token=ZMxU3pTN5xGAAAAWPwAVGQ&id=aMGoQ4kZ6xGAAAAWPwAVGQ',
 } as const;
 
 /** 课表数据接口路径（配合 bizTypeId=2 与 semesterId 使用） */

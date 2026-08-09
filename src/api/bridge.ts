@@ -10,7 +10,23 @@ let webview: WebView | null = null;
 let seq = 0;
 const pending = new Map<number, Pending>();
 
-const TIMEOUT = 30000;
+const TIMEOUT = 20000;
+const RETRY_MAX = 2;
+const RETRY_DELAY = 700;
+
+export class NotReadyError extends Error {
+  constructor() {
+    super('教务会话尚未就绪，请先登录');
+    this.name = 'NotReadyError';
+  }
+}
+
+export class TimeoutError extends Error {
+  constructor() {
+    super('请求超时');
+    this.name = 'TimeoutError';
+  }
+}
 
 export function attachWebView(wv: WebView | null) {
   webview = wv;
@@ -21,7 +37,7 @@ export function isWebViewReady() {
 }
 
 let ready = false;
-const readyWaiters: Array<() => void> = [];
+const readyWaiters: Array<(err?: Error) => void> = [];
 
 /** 页面加载完成后标记数据桥就绪（之后 webFetch 才会真正注入执行） */
 export function markWebReady() {
@@ -33,14 +49,15 @@ export function markWebReady() {
 /** 会话重建（重新登录/切换页面）后重置就绪标记，等待新页面加载完成 */
 export function resetWebReady() {
   ready = false;
-  readyWaiters.splice(0);
+  const waiters = readyWaiters.splice(0);
+  for (const w of waiters) w(new NotReadyError());
 }
 
 /** 等待数据桥就绪；就绪后立即 resolve */
 export function webFetchReady(): Promise<void> {
   if (ready) return Promise.resolve();
-  return new Promise((resolve) => {
-    readyWaiters.push(resolve);
+  return new Promise((resolve, reject) => {
+    readyWaiters.push((err) => (err ? reject(err) : resolve()));
   });
 }
 
@@ -68,29 +85,56 @@ export function handleWebViewMessage(event: { nativeEvent: { data: string } }) {
 
 /**
  * 在常驻 WebView（swjw 域）内发起 fetch，自动携带登录 Cookie（含 HttpOnly SESSION）。
+ * 页面重建/加载期间注入失败会静默丢弃，这里对可恢复错误自动重试，避免用户手动重试。
  */
 export function webFetch(
   path: string,
   init?: { method?: string; body?: string; headers?: Record<string, string> },
 ): Promise<string> {
-  return webFetchReady().then(
-    () =>
-      new Promise<string>((resolve, reject) => {
-        if (!webview) {
-          reject(new Error('教务会话尚未就绪，请先登录'));
-          return;
-        }
-        const id = ++seq;
-        const timer = setTimeout(() => {
-          const p = pending.get(id);
-          if (p) {
-            pending.delete(id);
-            p.reject(new Error('请求超时'));
-          }
-        }, TIMEOUT);
-        pending.set(id, { resolve, reject, timer });
+  return webFetchReady()
+    .then(() => attemptFetch(path, init ?? {}, 0))
+    .catch(() => attemptFetch(path, init ?? {}, 0));
+}
 
-        const js = `
+function attemptFetch(
+  path: string,
+  init: Record<string, unknown>,
+  n: number,
+): Promise<string> {
+  return injectFetch(path, init).catch((err) => {
+    if (n < RETRY_MAX && isRecoverable(err)) {
+      return new Promise<string>((r) => setTimeout(r, RETRY_DELAY)).then(() =>
+        attemptFetch(path, init, n + 1),
+      );
+    }
+    throw err;
+  });
+}
+
+function isRecoverable(err: Error): boolean {
+  if (err instanceof NotReadyError || err instanceof TimeoutError) return true;
+  return /network request failed|failed to fetch|fetch failed|load failed|net::|request aborted/i.test(
+    err.message || '',
+  );
+}
+
+function injectFetch(path: string, init: Record<string, unknown>): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    if (!webview) {
+      reject(new NotReadyError());
+      return;
+    }
+    const id = ++seq;
+    const timer = setTimeout(() => {
+      const p = pending.get(id);
+      if (p) {
+        pending.delete(id);
+        p.reject(new TimeoutError());
+      }
+    }, TIMEOUT);
+    pending.set(id, { resolve, reject, timer });
+
+    const js = `
           (function () {
             var p = ${JSON.stringify(path)};
             var o = ${JSON.stringify(init || {})};
@@ -104,9 +148,8 @@ export function webFetch(
               });
           })(); true;
         `;
-        webview.injectJavaScript(js);
-      }),
-  );
+    webview.injectJavaScript(js);
+  });
 }
 
 /** 判断一次数据请求的返回是否被重定向到了登录页（会话失效） */

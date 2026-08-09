@@ -19,7 +19,13 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "queries": [
+        {
+          "action": "VIEW",
+          "scheme": "weixin"
+        }
+      ]
     },
     "web": {
       "bundler": "metro",

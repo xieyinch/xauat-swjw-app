@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
-import { attachWebView, handleWebViewMessage, markWebReady } from './src/api/bridge';
+import { attachWebView, handleWebViewMessage, markWebReady, resetWebReady } from './src/api/bridge';
 import { clearStudentInfoCache } from './src/api/data';
 import {
   clearCredentials,
@@ -55,6 +55,7 @@ export default function App() {
   }, [phase]);
 
   const startAutoLogin = useCallback(() => {
+    resetWebReady();
     setLoginError(null);
     setPhase('logging');
   }, []);
@@ -68,6 +69,7 @@ export default function App() {
       passwordRef.current = c.password;
       setUsername(c.stdNo);
       setPassword(c.password);
+      resetWebReady();
       setLoginError(null);
       setPhase('logging');
     } else {
@@ -100,7 +102,6 @@ export default function App() {
       if (ph === 'boot') {
         if (!bootReadyRef.current) return;
         if (nav.url.startsWith(SITE.swjw)) {
-          markWebReady();
           setPhase('main');
         } else if (nav.url.includes('authserver')) {
           if (credentialsRef.current) startAutoLogin();
@@ -117,7 +118,7 @@ export default function App() {
             saveCredentials(c);
           }
           setLoginError(null);
-          markWebReady();
+          resetWebReady();
           setPhase('main');
         }
       } else if (ph === 'main') {
@@ -183,6 +184,8 @@ export default function App() {
     const url = currentUrlRef.current;
     if (ph === 'logging' && url.includes('authserver')) {
       injectAutoLogin();
+    } else if (url.startsWith(SITE.swjw)) {
+      markWebReady();
     }
   }, [injectAutoLogin]);
 
@@ -220,8 +223,7 @@ export default function App() {
       bootReadyRef.current = true;
       const url = currentUrlRef.current;
       if (url.startsWith(SITE.swjw)) {
-        // 会话 cookie 仍有效，直接进入主界面
-        markWebReady();
+        // 会话 cookie 仍有效，直接进入主界面（就绪标记由 onLoadEnd 设置）
         setPhase('main');
       } else if (url.includes('authserver')) {
         if (c) startAutoLogin();
@@ -239,6 +241,7 @@ export default function App() {
   const handleLoginSubmit = useCallback(() => {
     if (!usernameRef.current.trim() || !passwordRef.current) return;
     setLoginError(null);
+    resetWebReady();
     setPhase('logging');
   }, []);
 

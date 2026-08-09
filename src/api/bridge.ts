@@ -30,6 +30,12 @@ export function markWebReady() {
   for (const w of waiters) w();
 }
 
+/** 会话重建（重新登录/切换页面）后重置就绪标记，等待新页面加载完成 */
+export function resetWebReady() {
+  ready = false;
+  readyWaiters.splice(0);
+}
+
 /** 等待数据桥就绪；就绪后立即 resolve */
 export function webFetchReady(): Promise<void> {
   if (ready) return Promise.resolve();

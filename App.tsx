@@ -25,6 +25,7 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { NoticeDetailScreen } from './src/screens/NoticeDetailScreen';
 import { NoticeScreen } from './src/screens/NoticeScreen';
+import { SportsScreen } from './src/screens/SportsScreen';
 import { colors, spacing } from './src/theme';
 import type { NoticeItem } from './src/types';
 
@@ -40,6 +41,7 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [noticeDetail, setNoticeDetail] = useState<NoticeItem | null>(null);
+  const [sportsVisible, setSportsVisible] = useState(false);
 
   const webViewRef = useRef<WebView>(null);
   const phaseRef = useRef<Phase>('boot');
@@ -245,6 +247,14 @@ export default function App() {
     setPhase('logging');
   }, []);
 
+  const handleNavigate = useCallback((key: string) => {
+    if (key === 'sports') {
+      setSportsVisible(true);
+    } else {
+      setActiveKey(key);
+    }
+  }, []);
+
   const renderTab = () => {
     switch (activeKey) {
       case 'schedule':
@@ -260,7 +270,7 @@ export default function App() {
         return (
           <HomeScreen
             user={user}
-            onNavigate={setActiveKey}
+            onNavigate={handleNavigate}
             onSessionExpired={handleSessionExpired}
             onLogout={handleLogout}
           />
@@ -358,6 +368,12 @@ export default function App() {
               title={noticeDetail.title}
               onClose={() => setNoticeDetail(null)}
             />
+          </View>
+        ) : null}
+
+        {sportsVisible ? (
+          <View style={StyleSheet.absoluteFill}>
+            <SportsScreen onClose={() => setSportsVisible(false)} />
           </View>
         ) : null}
       </SafeAreaView>

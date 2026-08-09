@@ -11,6 +11,8 @@ export const SITE = {
   noticeBase: 'https://jwc.xauat.edu.cn',
   /** 教务处「通知公告」列表页（公开） */
   noticeList: 'https://jwc.xauat.edu.cn/tzgg/jsxg.htm',
+  /** 体育馆预约系统（SPA，CAS 统一认证，与教务共用登录态） */
+  sports: 'https://sports.xauat.edu.cn/#/',
 } as const;
 
 /** 课表数据接口路径（配合 bizTypeId=2 与 semesterId 使用） */

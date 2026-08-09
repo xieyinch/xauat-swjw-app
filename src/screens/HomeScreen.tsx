@@ -18,6 +18,7 @@ const ENTRIES = [
   { key: 'grade', label: '成绩查询', icon: 'school-outline', color: '#12B76A' },
   { key: 'exam', label: '考试安排', icon: 'time-outline', color: '#F59E0B' },
   { key: 'notice', label: '通知公告', icon: 'notifications-outline', color: '#7C5CFC' },
+  { key: 'sports', label: '体育馆预约', icon: 'basketball-outline', color: '#F97316' },
 ];
 
 const WEEK_LABELS: Record<number, string> = {

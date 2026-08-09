@@ -12,6 +12,7 @@ export interface PortalWebViewHandle {
 export interface PortalWebViewProps {
   uri: string;
   requiresLogin?: boolean;
+  userAgent?: string;
   onNavigationStateChange?: (nav: WebViewNavigation) => void;
   onLoadProgress?: (progress: number) => void;
   onError?: () => void;
@@ -46,7 +47,7 @@ const LOGIN_DETECTOR = `(function () {
 
 export const PortalWebView = forwardRef<PortalWebViewHandle, PortalWebViewProps>(
   function PortalWebView(
-    { uri, requiresLogin, onNavigationStateChange, onLoadProgress, onError, onLoginState },
+    { uri, requiresLogin, userAgent, onNavigationStateChange, onLoadProgress, onError, onLoginState },
     ref,
   ) {
     const webViewRef = useRef<WebView>(null);
@@ -62,6 +63,7 @@ export const PortalWebView = forwardRef<PortalWebViewHandle, PortalWebViewProps>
         ref={webViewRef}
         source={{ uri }}
         style={{ flex: 1, backgroundColor: '#fff' }}
+        userAgent={userAgent}
         javaScriptEnabled
         domStorageEnabled
         thirdPartyCookiesEnabled

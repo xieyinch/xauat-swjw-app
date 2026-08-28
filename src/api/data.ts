@@ -29,18 +29,38 @@ export async function fetchSemesters(): Promise<Semester[]> {
   return parseSemestersFromCourseTable(raw);
 }
 
-/** 推断当前学期（今天落在学期区间内；否则取最近开始的学期） */
+/** 推断当前学期：优先取今天落在区间内的学期；空档期取「即将开始」或「最近结束」的学期，避免选到过于久远的新学期 */
 export function resolveCurrentSemester(semesters: Semester[]): Semester | null {
   if (!semesters.length) return null;
   const today = new Date();
+  const todayNum = today.getTime();
   const inRange = semesters.find((s) => {
     if (!s.startDate || !s.endDate) return false;
     const start = new Date(s.startDate.replace(/-/g, '/'));
     const end = new Date(s.endDate.replace(/-/g, '/'));
-    return today >= start && today <= end;
+    return todayNum >= start.getTime() && todayNum <= end.getTime();
   });
   if (inRange) return inRange;
-  return semesters[0];
+  let next: Semester | null = null;
+  let nextDiff = Infinity;
+  let last: Semester | null = null;
+  let lastDiff = Infinity;
+  for (const s of semesters) {
+    if (!s.startDate || !s.endDate) continue;
+    const start = new Date(s.startDate.replace(/-/g, '/')).getTime();
+    const end = new Date(s.endDate.replace(/-/g, '/')).getTime();
+    if (start >= todayNum && start - todayNum < nextDiff) {
+      next = s;
+      nextDiff = start - todayNum;
+    }
+    if (end <= todayNum && todayNum - end < lastDiff) {
+      last = s;
+      lastDiff = todayNum - end;
+    }
+  }
+  // 临近开学（30 天内）优先看新学期课表；假期前期优先看刚结束的学期
+  if (next && nextDiff <= 30 * 24 * 3600 * 1000) return next;
+  return last || next || semesters[0];
 }
 
 /** 学生信息（studentId / 姓名 / 学号） */

@@ -181,7 +181,7 @@ export function parseCourseTableJson(raw: string): CourseTableData {
   }
   return {
     semesterId: d.semesterId as number,
-    totalWeeks: Array.isArray(d.weekIndices) ? d.weekIndices.length : 0,
+    totalWeeks: Math.max(1, Array.isArray(d.weekIndices) ? d.weekIndices.length : Number(d.totalWeeks ?? 1) || 1),
     currentWeek: Number(d.currentWeek ?? 1),
     lessons,
   };

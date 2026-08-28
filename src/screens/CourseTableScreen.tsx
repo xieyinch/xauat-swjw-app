@@ -97,10 +97,10 @@ export function CourseTableScreen({ onSessionExpired }: Props) {
         const data = await fetchCourseTable(sid);
         setTable(data);
         refreshCourseWidget(data);
-        const cw =
-          data.currentWeek && data.currentWeek <= (data.totalWeeks || 1) ? data.currentWeek : 1;
+        const total = Math.max(1, data.totalWeeks || 1);
+        const cw = Math.min(Math.max(1, data.currentWeek || 1), total);
         setWeek((w) => {
-          if (w > (data.totalWeeks || 1)) return cw;
+          if (w > total) return cw;
           if (w === 1) return cw;
           return w;
         });
@@ -217,7 +217,9 @@ export function CourseTableScreen({ onSessionExpired }: Props) {
         <View style={styles.weekInfo}>
           <Text style={styles.weekText}>第 {week} 周</Text>
           {table ? (
-            <Text style={styles.weekTotal}>共 {table.totalWeeks} 周 · 当前第 {table.currentWeek} 周</Text>
+            <Text style={styles.weekTotal}>
+              共 {table.totalWeeks} 周 · 当前第 {Math.min(Math.max(1, table.currentWeek || 1), table.totalWeeks)} 周
+            </Text>
           ) : null}
         </View>
         <TouchableOpacity

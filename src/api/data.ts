@@ -1,5 +1,5 @@
 import { SITE, API } from '../config/site';
-import type { CourseTableData, ExamItem, GradeData, NoticeItem, Semester, StudentInfo } from '../types';
+import type { CourseTableData, ExamItem, GradeData, MenuCategory, NoticeItem, Semester, StudentInfo } from '../types';
 import { isLoginPageText, webFetch } from './bridge';
 import {
   extractStudentId,
@@ -7,6 +7,7 @@ import {
   parseCourseTableJson,
   parseExamHtml,
   parseGradeJson,
+  parseMenu,
   parseNoticeHtml,
   parseSemestersFromCourseTable,
 } from './parsers';
@@ -130,4 +131,10 @@ export async function fetchNotices(): Promise<NoticeItem[]> {
   if (!res.ok) throw new Error('通知获取失败');
   const html = await res.text();
   return parseNoticeHtml(html, SITE.noticeList);
+}
+
+/** 教务系统全部功能菜单（按分类分组） */
+export async function fetchMenu(): Promise<MenuCategory[]> {
+  const raw = guardSession(await webFetch(API.menu));
+  return parseMenu(raw);
 }

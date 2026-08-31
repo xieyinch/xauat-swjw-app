@@ -18,6 +18,8 @@ export interface PortalWebViewProps {
   onError?: () => void;
   /** 是否处于未登录状态（通过注入脚本探测登录表单得出） */
   onLoginState?: (loggedIn: boolean) => void;
+  /** 额外的注入脚本（附加在登录探测脚本之后） */
+  injectedJavaScriptExtra?: string;
 }
 
 /**
@@ -47,7 +49,16 @@ const LOGIN_DETECTOR = `(function () {
 
 export const PortalWebView = forwardRef<PortalWebViewHandle, PortalWebViewProps>(
   function PortalWebView(
-    { uri, requiresLogin, userAgent, onNavigationStateChange, onLoadProgress, onError, onLoginState },
+    {
+      uri,
+      requiresLogin,
+      userAgent,
+      onNavigationStateChange,
+      onLoadProgress,
+      onError,
+      onLoginState,
+      injectedJavaScriptExtra,
+    },
     ref,
   ) {
     const webViewRef = useRef<WebView>(null);
@@ -93,7 +104,13 @@ export const PortalWebView = forwardRef<PortalWebViewHandle, PortalWebViewProps>
             // 忽略非本应用注入脚本产生的消息
           }
         }}
-        injectedJavaScript={requiresLogin ? LOGIN_DETECTOR : undefined}
+        injectedJavaScript={
+          requiresLogin && injectedJavaScriptExtra
+            ? LOGIN_DETECTOR + injectedJavaScriptExtra
+            : requiresLogin
+              ? LOGIN_DETECTOR
+              : injectedJavaScriptExtra || undefined
+        }
       />
     );
   },

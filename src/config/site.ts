@@ -21,6 +21,7 @@ export const API = {
   courseTablePage: '/student/for-std/course-table',
   gradePage: '/student/for-std/grade/sheet',
   examPage: '/student/for-std/exam-arrange',
+  menu: '/student/home/menu',
 } as const;
 
 export interface TabItem {
@@ -36,6 +37,6 @@ export const TABS: TabItem[] = [
   { key: 'home', title: '首页', icon: 'home-outline', activeIcon: 'home' },
   { key: 'schedule', title: '课表', icon: 'calendar-outline', activeIcon: 'calendar' },
   { key: 'grade', title: '成绩', icon: 'school-outline', activeIcon: 'school' },
-  { key: 'notice', title: '通知', icon: 'notifications-outline', activeIcon: 'notifications' },
+  { key: 'all', title: '全部', icon: 'apps-outline', activeIcon: 'apps' },
   { key: 'exam', title: '考试', icon: 'time-outline', activeIcon: 'time' },
 ];

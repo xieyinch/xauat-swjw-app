@@ -3,6 +3,8 @@ import type {
   CourseTableData,
   ExamItem,
   GradeData,
+  MenuCategory,
+  MenuFunction,
   NoticeItem,
   Semester,
 } from '../types';
@@ -268,8 +270,35 @@ export function parseNoticeHtml(html: string, listUrl: string): NoticeItem[] {
   return items;
 }
 
-export function parseSemestersFromCourseTable(html: string): Semester[] {
-  const m = html.match(/semesters = JSON\.parse\(\s*'([^']+)'\s*\)/);
+/** 解析「/student/home/menu」返回的菜单 JSON，按一级分类分组 */
+export function parseMenu(raw: string): MenuCategory[] {
+  let arr: Array<Record<string, unknown>>;
+  try {
+    arr = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(arr)) return [];
+  const all = arr.map((m, idx) => ({
+    id: String(m.id ?? `m${idx}`),
+    parentId: String(m.parentId ?? ''),
+    title: String(m.title ?? ''),
+    href: (m.href as string) || null,
+    permCode: (m.permCode as string) || null,
+  }));
+  const categories: MenuCategory[] = [];
+  for (const m of all) {
+    if (!m.parentId && !m.href) {
+      const functions = all
+        .filter((f) => f.parentId === m.id && f.href)
+        .map((f) => ({ id: f.id, parentId: f.parentId, title: f.title, href: f.href, permCode: f.permCode }));
+      if (functions.length) categories.push({ id: m.id, title: m.title, functions });
+    }
+  }
+  return categories;
+}
+
+export function parseSemestersFromCourseTable(html: string): Semester[] {  const m = html.match(/semesters = JSON\.parse\(\s*'([^']+)'\s*\)/);
   if (!m) return [];
   const raw = m[1].replace(/\\"/g, '"');
   let arr: Array<Record<string, unknown>> = [];

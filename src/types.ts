@@ -77,3 +77,19 @@ export interface StudentInfo {
   /** 教务系统内部学生 ID */
   studentId: number;
 }
+
+/** 教务系统菜单中的单个功能项 */
+export interface MenuFunction {
+  id: string;
+  parentId: string;
+  title: string;
+  href: string | null;
+  permCode: string | null;
+}
+
+/** 教务系统菜单分类（一级菜单及其子功能） */
+export interface MenuCategory {
+  id: string;
+  title: string;
+  functions: MenuFunction[];
+}

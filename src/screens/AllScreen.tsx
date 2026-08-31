@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   RefreshControl,
   StyleSheet,
@@ -10,6 +11,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as Sharing from 'expo-sharing';
+import { captureAllPages } from '../api/capture';
 import { fetchMenu } from '../api/data';
 import { FALLBACK_MENU, categoryMeta, metaFor } from '../config/functions';
 import type { MenuCategory, MenuFunction } from '../types';
@@ -35,6 +38,8 @@ export function AllScreen({ onOpenFunction, onOpenNotices, onNavigateTab, onSess
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [keyword, setKeyword] = useState('');
+  const [capturing, setCapturing] = useState(false);
+  const [captureProgress, setCaptureProgress] = useState<{ done: number; total: number; title: string } | null>(null);
 
   const load = useCallback(
     async (refresh?: boolean) => {
@@ -79,6 +84,37 @@ export function AllScreen({ onOpenFunction, onOpenNotices, onNavigateTab, onSess
     if (key === 'notices') onOpenNotices();
     else onNavigateTab(key);
   }, [onOpenNotices, onNavigateTab]);
+
+  const handleCapture = useCallback(async () => {
+    if (capturing || !categories) return;
+    setCapturing(true);
+    setCaptureProgress({ done: 0, total: 0, title: '' });
+    try {
+      const result = await captureAllPages(categories, (done, total, title) =>
+        setCaptureProgress({ done, total, title }),
+      );
+      setCaptureProgress(null);
+      setCapturing(false);
+      if (result.ok === 0) {
+        Alert.alert('采集失败', '未获取到任何页面，请确认已登录后再试。');
+        return;
+      }
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(result.fileUri, {
+          mimeType: 'application/json',
+          dialogTitle: '导出教务页面数据',
+          UTI: 'public.json',
+        });
+      } else {
+        Alert.alert('采集完成', `已生成 ${result.fileUri}（成功 ${result.ok} / 失败 ${result.failed}）`);
+      }
+    } catch (e) {
+      setCaptureProgress(null);
+      setCapturing(false);
+      Alert.alert('采集出错', String((e as Error).message || e));
+    }
+  }, [capturing, categories]);
 
   const renderItem = useCallback(
     ({ item }: { item: MenuCategory }) => (
@@ -180,6 +216,27 @@ export function AllScreen({ onOpenFunction, onOpenNotices, onNavigateTab, onSess
               <Text style={styles.emptyText}>未找到相关功能</Text>
             </View>
           }
+          ListFooterComponent={
+            <View style={styles.footer}>
+              {capturing ? (
+                <View style={styles.captureBox}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={styles.captureText} numberOfLines={1}>
+                    {captureProgress?.title ?? '准备中…'}（{captureProgress?.done ?? 0}/{captureProgress?.total ?? 0}）
+                  </Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.captureEntry}
+                  onPress={handleCapture}
+                  disabled={!categories}
+                >
+                  <Ionicons name="download-outline" size={16} color={colors.textSecondary} />
+                  <Text style={styles.captureEntryText}>导出页面数据（供原生重构）</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          }
         />
       )}
     </View>
@@ -218,4 +275,18 @@ const styles = StyleSheet.create({
   retryBtn: { marginTop: spacing.sm, paddingHorizontal: spacing.xl, paddingVertical: 8, borderRadius: 18, backgroundColor: colors.primary },
   retryText: { color: '#fff', fontSize: 14, fontWeight: '600' },
   emptyText: { fontSize: 14, color: colors.textSecondary, marginTop: spacing.sm },
+  footer: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, alignItems: 'center' },
+  captureEntry: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, padding: spacing.sm },
+  captureEntryText: { fontSize: 12, color: colors.textSecondary },
+  captureBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+    maxWidth: '100%',
+  },
+  captureText: { fontSize: 12, color: colors.textSecondary, flexShrink: 1 },
 });

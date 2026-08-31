@@ -7,6 +7,7 @@ export interface PortalWebViewHandle {
   reload: () => void;
   goBack: () => void;
   goForward: () => void;
+  injectJavaScript: (script: string) => void;
 }
 
 export interface PortalWebViewProps {
@@ -67,6 +68,7 @@ export const PortalWebView = forwardRef<PortalWebViewHandle, PortalWebViewProps>
       reload: () => webViewRef.current?.reload(),
       goBack: () => webViewRef.current?.goBack(),
       goForward: () => webViewRef.current?.goForward(),
+      injectJavaScript: (script: string) => webViewRef.current?.injectJavaScript(script),
     }));
 
     return (

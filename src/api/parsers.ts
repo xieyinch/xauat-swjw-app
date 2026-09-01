@@ -1,4 +1,5 @@
 import type {
+  CommonFileItem,
   CourseLesson,
   CourseTableData,
   ExamItem,
@@ -6,7 +7,14 @@ import type {
   MenuCategory,
   MenuFunction,
   NoticeItem,
+  PrecautionItem,
+  ProgramCourse,
+  ProgramData,
+  ProgramModule,
   Semester,
+  StudentInfoDetail,
+  StudentInfoSection,
+  TutorSelectResult,
 } from '../types';
 
 const WEEK_CN: Record<string, number> = {
@@ -355,5 +363,239 @@ export function inWeek(weekText: string, week: number): boolean {
   return parseWeekRanges(weekText).some(
     (r) => week >= r.from && week <= r.to && (!r.odd || week % 2 === 1) && (!r.even || week % 2 === 0),
   );
+}
+
+/** 解析常用文件列表 JSON：{ commonFiles: [{ fileInfo: { key, name }, commonFileType: { nameZh }, publishDate }] } */
+export function parseCommonFiles(raw: string): CommonFileItem[] {
+  let d: Record<string, unknown>;
+  try {
+    d = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  const list = Array.isArray(d.commonFiles) ? (d.commonFiles as Array<Record<string, unknown>>) : [];
+  return list.map((f) => {
+    const fileInfo = (f.fileInfo ?? {}) as Record<string, unknown>;
+    const type = (f.commonFileType ?? null) as Record<string, unknown> | null;
+    const publishDate = f.publishDate != null ? String(f.publishDate).replace(/T/, ' ').slice(0, 19) : '';
+    return {
+      name: String(fileInfo.name ?? ''),
+      key: String(fileInfo.key ?? ''),
+      typeName: type && type.nameZh != null ? String(type.nameZh) : '',
+      publishTime: publishDate,
+    };
+  });
+}
+
+/** 将单个学籍信息表格区块解析为 label/value 字段列表 */
+function parseInfoBlock(html: string): Array<{ label: string; value: string }> {
+  const fields: Array<{ label: string; value: string }> = [];
+  const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
+  let m: RegExpExecArray | null;
+  while ((m = trRe.exec(html))) {
+    const tds: string[] = [];
+    const tdRe = /<td[^>]*>([\s\S]*?)<\/td>/g;
+    let tdm: RegExpExecArray | null;
+    while ((tdm = tdRe.exec(m[1]))) tds.push(stripHtml(tdm[1]));
+    if (!tds.length) continue;
+    // 3 组「标签 值 标签 值 标签 值」的 bisection 布局
+    if (tds.length >= 6) {
+      for (let i = 0; i + 1 < tds.length; i += 2) {
+        const label = tds[i];
+        const value = tds[i + 1];
+        if (label && value) fields.push({ label, value });
+      }
+    } else if (tds.length >= 2) {
+      fields.push({ label: tds[0], value: tds[1] });
+    }
+  }
+  return fields;
+}
+
+/** 解析学籍信息页面 HTML：按「基本信息/录取信息/…」区块分组 */
+export function parseStudentInfoDetail(html: string): StudentInfoDetail {
+  const sections: StudentInfoSection[] = [];
+  // 以「<div id="xxx"」为区块起点，每个区块内容截取到下一个区块起点
+  const ids = [...html.matchAll(/<div id="([\w-]+)"/g)].map((m) => m.index as number);
+  for (let i = 0; i < ids.length; i++) {
+    const idM = html.slice(ids[i]).match(/^<div id="([\w-]+)"/);
+    if (!idM) continue;
+    const key = idM[1];
+    const start = ids[i];
+    const end = i + 1 < ids.length ? ids[i + 1] : html.length;
+    const block = html.slice(start, end);
+    const titleM = block.match(/<h4>([\s\S]*?)<\/h4>/);
+    if (!titleM) continue;
+    const title = stripHtml(titleM[1]);
+    // 经历区块是 div 布局而非表格，单独解析
+    const expFields = parseExperienceBlock(block);
+    if (expFields.length) {
+      sections.push({ key, title, fields: expFields });
+      continue;
+    }
+    const table = block.match(/<table[\s\S]*?<\/table>/);
+    if (!table) continue;
+    const fields = parseInfoBlock(table[0]);
+    if (fields.length) sections.push({ key, title, fields });
+  }
+  return { sections };
+}
+
+/** 解析「学习工作经历」等 div 布局区块（时间段/学校/学位/证明人等） */
+function parseExperienceBlock(html: string): Array<{ label: string; value: string }> {
+  const fields: Array<{ label: string; value: string }> = [];
+  const wrapperRe = /work-experience-header[\s\S]*?work-experience-header|work-experience-header[\s\S]*?(?=<div class="work-experience-wrapper|$)/g;
+  // 直接按 header 分组：先切出所有 header，再找其后续 content
+  const headers: Array<{ start: number; text: string }> = [];
+  for (const m of html.matchAll(/<span class="lightGrey">([\s\S]*?)<\/span>[\s\S]*?<span style="font-weight: bold;">([\s\S]*?)<\/span>[\s\S]*?<span style="font-weight: bold;">([\s\S]*?)<\/span>/g)) {
+    const time = stripHtml(m[1]);
+    const school = stripHtml(m[2]);
+    const major = stripHtml(m[3]);
+    const hdr = [time, school, major].filter(Boolean).join(' · ');
+    if (!hdr) continue;
+    fields.push({ label: school || '经历', value: [time, major].filter(Boolean).join(' · ') || hdr });
+    headers.push({ start: m.index as number, text: hdr });
+  }
+  // 从每个 header 起，提取其后面的「学位/证明人/备注」标签值
+  for (let i = 0; i < headers.length; i++) {
+    const segStart = headers[i].start;
+    const segEnd = i + 1 < headers.length ? headers[i + 1].start : html.length;
+    const seg = html.slice(segStart, segEnd);
+    const kvRe = /<div class="lightGrey[^"]*"[^>]*>([\s\S]*?)<\/div>[\s\S]*?<div class="col-sm-11"[^>]*>([\s\S]*?)<\/div>/g;
+    for (const kv of seg.matchAll(kvRe)) {
+      const label = stripHtml(kv[1]);
+      const value = stripHtml(kv[2]);
+      if (label && value) fields.push({ label: `${label}（${stripHtml(headers[i].text.split(' · ')[1] || '')}）`, value });
+    }
+  }
+  return fields;
+}
+
+/** 解析学业预警页面 HTML：仅取表格行 */
+export function parsePrecautionHtml(html: string): PrecautionItem[] {
+  const items: PrecautionItem[] = [];
+  const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
+  let m: RegExpExecArray | null;
+  while ((m = trRe.exec(html))) {
+    const tds: string[] = [];
+    const tdRe = /<td[^>]*>([\s\S]*?)<\/td>/g;
+    let tdm: RegExpExecArray | null;
+    while ((tdm = tdRe.exec(m[1]))) tds.push(stripHtml(tdm[1]));
+    if (tds.length < 8) continue;
+    const index = Number(tds[0]);
+    if (!Number.isFinite(index)) continue;
+    items.push({
+      index,
+      courseCode: tds[1],
+      courseName: tds[2],
+      compulsory: tds[3],
+      credits: tds[4],
+      score: tds[5],
+      gradePoint: tds[6],
+      checkResult: tds[7],
+    });
+  }
+  return items;
+}
+
+interface RawModule {
+  id?: unknown;
+  nameZh?: unknown;
+  requireInfo?: { requiredCredits?: unknown } | null;
+  children?: RawModule[];
+  planCourses?: Array<Record<string, unknown>>;
+  type?: { nameZh?: unknown } | null;
+}
+
+function getI18nName(obj: { nameZh?: unknown; nameEn?: unknown } | null | undefined): string {
+  if (!obj) return '';
+  return String(obj.nameZh ?? obj.nameEn ?? '');
+}
+
+function periodStr(periodInfo: Record<string, unknown> | null | undefined, key: string): string {
+  if (!periodInfo || periodInfo[key] == null) return '';
+  const unit = String(periodInfo[`${key}Unit`] ?? '');
+  const value = String(periodInfo[key]);
+  if (unit === 'WEEK') return `${value}周`;
+  if (unit === 'DAY') return `${value}天`;
+  return value;
+}
+
+/** 递归构建培养方案模块树 */
+function buildModule(mod: RawModule): ProgramModule {
+  const children = Array.isArray(mod.children) ? mod.children.map(buildModule) : [];
+  const courses: ProgramCourse[] = Array.isArray(mod.planCourses)
+    ? mod.planCourses.map((pc) => {
+        const course = (pc.course ?? {}) as Record<string, unknown>;
+        const periodInfo = (pc.periodInfo ?? {}) as Record<string, unknown>;
+        const readableTerms = Array.isArray(pc.readableTerms) ? pc.readableTerms.join(',') : '';
+        return {
+          code: String(course.code ?? ''),
+          nameZh: getI18nName(course),
+          courseProperty: getI18nName((pc.courseProperty ?? null) as Record<string, unknown> | null),
+          credits: typeof course.credits === 'number' ? course.credits : undefined,
+          periodTotal: periodInfo.total != null ? String(periodInfo.total) : undefined,
+          theory: periodStr(periodInfo, 'theory'),
+          experiment: periodStr(periodInfo, 'experiment'),
+          practice: periodStr(periodInfo, 'focusPractice'),
+          test: periodStr(periodInfo, 'test'),
+          machine: periodStr(periodInfo, 'machine'),
+          design: periodStr(periodInfo, 'design'),
+          extra: periodStr(periodInfo, 'extra'),
+          terms: readableTerms,
+          compulsory: pc.compulsory === true,
+          examMode: getI18nName((pc.examMode ?? null) as Record<string, unknown> | null),
+          openDepartment: getI18nName((pc.openDepartment ?? null) as Record<string, unknown> | null),
+        };
+      })
+    : [];
+  const requireInfo = mod.requireInfo;
+  return {
+    id: Number(mod.id ?? 0),
+    nameZh: mod.nameZh != null ? String(mod.nameZh) : getI18nName(mod.type),
+    requiredCredits: requireInfo && requireInfo.requiredCredits != null ? String(requireInfo.requiredCredits) : undefined,
+    children,
+    courses,
+  };
+}
+
+/** 解析「我的培养方案」root-module-json 返回的模块树 */
+export function parseProgramJson(raw: string): ProgramData {
+  let d: unknown;
+  try {
+    d = JSON.parse(raw);
+  } catch {
+    throw new Error('培养方案数据异常');
+  }
+  const root = (d ?? {}) as RawModule;
+  return { root: buildModule(root) };
+}
+
+/** 解析导师互选结果查询页面：表格行 */
+export function parseTutorSelectResultHtml(html: string): TutorSelectResult[] {
+  const items: TutorSelectResult[] = [];
+  const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
+  let m: RegExpExecArray | null;
+  while ((m = trRe.exec(html))) {
+    const tds: string[] = [];
+    const tdRe = /<td[^>]*>([\s\S]*?)<\/td>/g;
+    let tdm: RegExpExecArray | null;
+    while ((tdm = tdRe.exec(m[1]))) tds.push(stripHtml(tdm[1]));
+    if (tds.length < 9) continue;
+    const stdNo = tds[0];
+    if (!/\d{6,}/.test(stdNo)) continue;
+    items.push({
+      stdNo,
+      studentName: tds[1],
+      grade: tds[2],
+      college: tds[3],
+      major: tds[4],
+      tutorType: tds[5],
+      tutorName: tds[6],
+      tutorDept: tds[7],
+      termYears: tds[8],
+    });
+  }
+  return items;
 }
 

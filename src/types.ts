@@ -93,3 +93,80 @@ export interface MenuCategory {
   title: string;
   functions: MenuFunction[];
 }
+
+/** 常用文件下载中的单个文件 */
+export interface CommonFileItem {
+  name: string;
+  key: string;
+  typeName: string;
+  publishTime: string;
+}
+
+/** 学籍信息：一个分组区块（如基本信息/录取信息） */
+export interface StudentInfoSection {
+  key: string;
+  title: string;
+  fields: Array<{ label: string; value: string }>;
+}
+
+export interface StudentInfoDetail {
+  sections: StudentInfoSection[];
+}
+
+/** 培养方案中的一门计划课程 */
+export interface ProgramCourse {
+  code: string;
+  nameZh: string;
+  courseProperty?: string;
+  credits?: number;
+  periodTotal?: string;
+  theory?: string;
+  experiment?: string;
+  practice?: string;
+  test?: string;
+  machine?: string;
+  design?: string;
+  extra?: string;
+  terms?: string;
+  compulsory?: boolean;
+  examMode?: string;
+  openDepartment?: string;
+}
+
+/** 培养方案模块（可含子模块与课程） */
+export interface ProgramModule {
+  id: number;
+  nameZh: string;
+  requiredCredits?: string;
+  children: ProgramModule[];
+  courses: ProgramCourse[];
+}
+
+export interface ProgramData {
+  root: ProgramModule;
+}
+
+/** 学业预警条目 */
+export interface PrecautionItem {
+  index: number;
+  courseCode: string;
+  courseName: string;
+  compulsory: string;
+  credits: string;
+  score: string;
+  gradePoint: string;
+  checkResult: string;
+}
+
+/** 导师互选结果条目 */
+export interface TutorSelectResult {
+  stdNo: string;
+  studentName: string;
+  grade: string;
+  college: string;
+  major: string;
+  tutorType: string;
+  tutorName: string;
+  tutorDept: string;
+  termYears: string;
+}

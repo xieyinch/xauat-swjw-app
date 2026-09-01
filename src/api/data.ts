@@ -1,15 +1,33 @@
 import { SITE, API } from '../config/site';
-import type { CourseTableData, ExamItem, GradeData, MenuCategory, NoticeItem, Semester, StudentInfo } from '../types';
+import type {
+  CommonFileItem,
+  CourseTableData,
+  ExamItem,
+  GradeData,
+  MenuCategory,
+  NoticeItem,
+  PrecautionItem,
+  ProgramData,
+  Semester,
+  StudentInfo,
+  StudentInfoDetail,
+  TutorSelectResult,
+} from '../types';
 import { isLoginPageText, webFetch } from './bridge';
 import {
   extractStudentId,
   extractStudentNameStdNo,
+  parseCommonFiles,
   parseCourseTableJson,
   parseExamHtml,
   parseGradeJson,
   parseMenu,
   parseNoticeHtml,
+  parsePrecautionHtml,
+  parseProgramJson,
   parseSemestersFromCourseTable,
+  parseStudentInfoDetail,
+  parseTutorSelectResultHtml,
 } from './parsers';
 
 export class SessionExpiredError extends Error {
@@ -137,4 +155,38 @@ export async function fetchNotices(): Promise<NoticeItem[]> {
 export async function fetchMenu(): Promise<MenuCategory[]> {
   const raw = guardSession(await webFetch(API.menu));
   return parseMenu(raw);
+}
+
+/** 常用文件下载（公共数据接口，返回 JSON） */
+export async function fetchCommonFiles(fileNameLike = '', commonFileTypeAssoc: string | null = null): Promise<CommonFileItem[]> {
+  const params = new URLSearchParams({ identity: 'STUDENT', fileNameLike });
+  if (commonFileTypeAssoc) params.set('commonFileTypeAssoc', commonFileTypeAssoc);
+  const raw = guardSession(await webFetch(`/student/common-file/search/download-data?${params.toString()}`));
+  return parseCommonFiles(raw);
+}
+
+/** 学籍信息（服务端渲染页面） */
+export async function fetchStudentInfoDetail(): Promise<StudentInfoDetail> {
+  const raw = guardSession(await webFetch('/student/for-std/student-info'));
+  return parseStudentInfoDetail(raw);
+}
+
+/** 我的培养方案（root-module-json 接口） */
+export async function fetchProgram(studentId: number): Promise<ProgramData> {
+  const raw = guardSession(await webFetch(`/student/for-std/program/root-module-json/${studentId}`));
+  return parseProgramJson(raw);
+}
+
+/** 学业预警（服务端渲染页面） */
+export async function fetchPrecaution(): Promise<PrecautionItem[]> {
+  const raw = guardSession(await webFetch('/student/for-std/precaution'));
+  return parsePrecautionHtml(raw);
+}
+
+/** 导师互选结果查询（search 返回 HTML 表格） */
+export async function fetchTutorSelectResult(studentId: number): Promise<TutorSelectResult[]> {
+  const raw = guardSession(
+    await webFetch(`/student/for-std/select/std-tutor-select-result/search?studentAssoc=${studentId}`),
+  );
+  return parseTutorSelectResultHtml(raw);
 }

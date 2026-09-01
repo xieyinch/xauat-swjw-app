@@ -108,8 +108,9 @@ export async function fetchRoomCampusList(): Promise<RoomCampusOption[]> {
   const raw = guardSession(await webFetch('/student/for-std/room-free'));
   const m = raw.match(/var\s+_campusList\s*=\s*(\[[\s\S]*?\])\s*;/);
   if (!m) return [];
+  // SSR 输出的是 JS 单引号字面量，非 JSON：{ 'text': '默认校区', 'value': 1 }
   try {
-    return JSON.parse(m[1]) as RoomCampusOption[];
+    return JSON.parse(m[1].replace(/'/g, '"')) as RoomCampusOption[];
   } catch {
     return [];
   }
@@ -160,18 +161,18 @@ export async function fetchRoomFree(query: RoomFreeQuery): Promise<RoomFreeItem[
   const d = parseJson<{ roomList?: Array<Record<string, unknown>> }>(raw);
   const rooms = d.roomList ?? [];
   return rooms.map((r) => {
-    const campus = (r.campus as Record<string, string> | undefined)?.nameZh ?? '';
     const building = (r.building as Record<string, string> | undefined)?.nameZh ?? '';
     const roomType = (r.roomType as Record<string, string> | undefined)?.nameZh ?? '';
-    const name = (r.room as Record<string, string> | undefined)?.nameZh ?? (r.nameZh as string) ?? '';
-    const freeTime = (r.freeTime as string) ?? '';
+    const buildingObj = r.building as { campus?: Record<string, string> } | undefined;
+    const campus = buildingObj?.campus?.nameZh ?? '';
+    const name = (r.nameZh as string) ?? '';
     return {
       campus: campus || (r.campusName as string) || '',
       building: building || (r.buildingName as string) || '',
       name: name || '',
       roomType: roomType || '',
       capacity: typeof r.seatsForLesson === 'number' ? r.seatsForLesson : undefined,
-      timeText: freeTime,
+      timeText: '',
     };
   });
 }

@@ -29,22 +29,43 @@ export function RoomFreeScreen({ onClose, onSessionExpired }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     fetchRoomCampusList()
-      .then((list) => {
+      .then(async (list) => {
+        if (cancelled) return;
         setCampuses(list);
-        if (list.length && !campus) setCampus(list[0].value);
+        // 部分校区未配置节次（get-unit-campus 返回空），默认选第一个有节次的校区
+        for (const c of list) {
+          if (cancelled) return;
+          const units = await fetchRoomUnits(c.value).catch(() => []);
+          if (cancelled) return;
+          if (units.length > 0) {
+            setCampus(c.value);
+            return;
+          }
+        }
       })
       .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
     if (campus === '') return;
+    let cancelled = false;
     fetchRoomUnits(Number(campus))
       .then((list) => {
+        if (cancelled) return;
         setUnits(list);
         setSelectedUnits(list.slice(0, 2).map((u) => u.value));
       })
-      .catch(() => setUnits([]));
+      .catch(() => {
+        if (!cancelled) setUnits([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [campus]);
 
   const toggleUnit = useCallback((value: string) => {
@@ -73,6 +94,9 @@ export function RoomFreeScreen({ onClose, onSessionExpired }: Props) {
     },
     [campus, date, selectedUnits, onSessionExpired],
   );
+
+  // 当前校区无节次配置时给出提示，避免静默空白
+  const noUnits = campus !== '' && units.length === 0;
 
   useEffect(() => {
     load();
@@ -115,7 +139,12 @@ export function RoomFreeScreen({ onClose, onSessionExpired }: Props) {
           <Text style={styles.dateText}>{date}</Text>
         </View>
       </View>
-      <ListContainer loading={loading} error={error} onRetry={() => load()} emptyText="暂无空闲教室">
+      <ListContainer
+        loading={loading}
+        error={error}
+        onRetry={() => load()}
+        emptyText={noUnits ? '该校区未配置查询节次，请选择其他校区' : '暂无空闲教室'}
+      >
         <FlatList
           data={items}
           keyExtractor={(item, idx) => `${item.name}-${item.building}-${idx}`}

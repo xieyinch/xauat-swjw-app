@@ -314,8 +314,15 @@ export async function fetchAdminClassTable(semesterId: number, studentId: number
   const activities = Array.isArray(d.activities) ? (d.activities as Array<Record<string, unknown>>) : [];
   const lessons: AdminClassCourse[] = [];
   for (const a of activities) {
+    const weeksStr = (a.weeksStr as string) ?? '';
+    const weekday = (a.weekday as number) ?? 0;
+    const startUnit = (a.startUnit as number) ?? 1;
+    const endUnit = (a.endUnit as number) ?? startUnit;
+    const campus = (a.campus as string) ?? '';
+    const room = (a.room as string) ?? '';
     const schedule =
-      `${(a.weeksStr as string) ?? ''} 周${(a.weekday as number) ?? ''} 第${(a.startUnit as number) ?? ''}-${(a.endUnit as number) ?? ''}节 ${(a.campus as string) ?? ''} ${(a.room as string) ?? ''}`.trim();
+      `${weeksStr} 周${weekday} 第${startUnit}-${endUnit}节 ${campus} ${room}`.trim();
+    const place = [campus, room].filter(Boolean).join(' ');
     lessons.push({
       lessonName: (a.lessonName as string) ?? '',
       courseCode: (a.courseCode as string) ?? '',
@@ -324,6 +331,11 @@ export async function fetchAdminClassTable(semesterId: number, studentId: number
       teachers: Array.isArray(a.teachers) ? (a.teachers as string[]) : [],
       courseType: ((a.courseType as Record<string, string> | undefined)?.nameZh ?? '') as string,
       scheduleText: schedule,
+      dayOfWeek: weekday >= 1 && weekday <= 7 ? weekday : undefined,
+      startUnit,
+      endUnit,
+      weekText: weeksStr,
+      placeText: place,
     });
   }
   return {

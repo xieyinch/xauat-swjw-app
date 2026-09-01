@@ -190,6 +190,16 @@ export interface AdminClassCourse {
   teachers: string[];
   courseType: string;
   scheduleText: string;
+  /** 星期几，1=周一 … 7=周日 */
+  dayOfWeek?: number;
+  /** 起始节次 */
+  startUnit?: number;
+  /** 结束节次 */
+  endUnit?: number;
+  /** 周次文本，如「9~14」 */
+  weekText: string;
+  /** 上课地点，如「雁塔校区 南阶404」 */
+  placeText: string;
 }
 
 /** 等级考试批次条目（页面 22.15） */

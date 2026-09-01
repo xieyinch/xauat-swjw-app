@@ -222,9 +222,24 @@ export function parseGradeJson(raw: string, semesterId: number): GradeData {
 
 export function parseExamHtml(html: string): ExamItem[] {
   const items: ExamItem[] = [];
+  // 座位号不在表格 td 中，而是内联 JS 变量 studentExamList（seatNo），按 id="seat-{id}" 关联
+  const seatMap = new Map<number, string>();
+  const listM = html.match(/var\s+studentExamList\s*=\s*(\[[\s\S]*?\])\s*;/);
+  if (listM) {
+    try {
+      const list = JSON.parse(listM[1].replace(/'/g, '"')) as Array<Record<string, unknown>>;
+      for (const e of list) {
+        if (typeof e.id === 'number' && e.seatNo != null) seatMap.set(e.id, String(e.seatNo));
+      }
+    } catch {
+      // 忽略座位号解析失败
+    }
+  }
   const trRe = /<tr>([\s\S]*?)<\/tr>/g;
+  // 去除注释，避免注释内隐藏的伪 <td> 干扰列索引（如 th:if 座位号模板）
+  const clean = html.replace(/<!--[\s\S]*?-->/g, '');
   let trm: RegExpExecArray | null;
-  while ((trm = trRe.exec(html))) {
+  while ((trm = trRe.exec(clean))) {
     const tr = trm[1];
     if (!/<td/.test(tr)) continue;
     const tds: string[] = [];
@@ -238,6 +253,8 @@ export function parseExamHtml(html: string): ExamItem[] {
     const seat = stripHtml(tds[3]);
     const building = stripHtml(tds[4]);
     const campus = stripHtml(tds[5] ?? '');
+    const idM = tr.match(/id="seat-(\d+)"/);
+    const id = idM ? Number(idM[1]) : 0;
     if (!courseName) continue;
     items.push({
       courseName,
@@ -245,7 +262,7 @@ export function parseExamHtml(html: string): ExamItem[] {
       place,
       building,
       campus,
-      seatNo: seat || undefined,
+      seatNo: (id && seatMap.get(id)) || seat || undefined,
     });
   }
   return items;

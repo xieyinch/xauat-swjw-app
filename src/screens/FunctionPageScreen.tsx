@@ -4,6 +4,7 @@ import { BackHandler, Platform, StyleSheet, Text, TouchableOpacity, View } from 
 import type { WebViewNavigation } from 'react-native-webview';
 import { PortalWebView, PortalWebViewHandle } from '../components/PortalWebView';
 import { SITE } from '../config/site';
+import { nativeComponentFor } from '../config/nativeFunctions';
 import type { MenuFunction } from '../types';
 import { colors, spacing } from '../theme';
 
@@ -79,6 +80,12 @@ export function FunctionPageScreen({ fn, onClose, onSessionExpired }: Props) {
   const [naturalMode, setNaturalMode] = useState(false);
   const canGoBackRef = useRef(false);
   const expiredRef = useRef(false);
+
+  // 已原生化的功能直接渲染原生组件，跳过 WebView
+  const Native = nativeComponentFor(fn);
+  if (Native) {
+    return <Native onClose={onClose} onSessionExpired={onSessionExpired} />;
+  }
 
   const uri = fn.href ? `${SITE.swjw}${fn.href}` : SITE.portal;
 

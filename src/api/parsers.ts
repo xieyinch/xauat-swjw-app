@@ -49,6 +49,10 @@ function cnNumberToInt(s: string): number {
   return sum;
 }
 
+export function stripHtmlSafe(html: string): string {
+  return stripHtml(html);
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<[^>]+>/g, ' ')

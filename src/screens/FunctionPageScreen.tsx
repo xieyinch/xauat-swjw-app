@@ -83,9 +83,6 @@ export function FunctionPageScreen({ fn, onClose, onSessionExpired }: Props) {
 
   // 已原生化的功能直接渲染原生组件，跳过 WebView
   const Native = nativeComponentFor(fn);
-  if (Native) {
-    return <Native onClose={onClose} onSessionExpired={onSessionExpired} />;
-  }
 
   const uri = fn.href ? `${SITE.swjw}${fn.href}` : SITE.portal;
 
@@ -113,16 +110,26 @@ export function FunctionPageScreen({ fn, onClose, onSessionExpired }: Props) {
   );
 
   const handleBack = useCallback(() => {
+    // 原生页无 WebView 历史，返回键直接关闭页面回到上级菜单
+    if (Native) {
+      onClose();
+      return true;
+    }
     if (canGoBackRef.current) webViewRef.current?.goBack();
     else onClose();
     return true;
-  }, [onClose]);
+  }, [Native, onClose]);
 
+  // 无论原生页还是 WebView 页都必须注册返回键，否则硬件返回会直接退出 App
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', handleBack);
     return () => subscription.remove();
   }, [handleBack]);
+
+  if (Native) {
+    return <Native onClose={onClose} onSessionExpired={onSessionExpired} />;
+  }
 
   return (
     <View style={styles.container}>

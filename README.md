@@ -1,4 +1,5 @@
 # 西建大教务通 (XAUAT 教务通)
+“本项目为个人/学生独立开源项目，与西安建筑科技大学官方无从属关系，仅供学习交流使用。”
 
 [![Android APK](https://github.com/xieyinch/xauat-swjw-app/actions/workflows/android-build.yml/badge.svg)](https://github.com/xieyinch/xauat-swjw-app/actions/workflows/android-build.yml)
 

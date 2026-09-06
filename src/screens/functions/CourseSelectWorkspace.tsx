@@ -5,6 +5,7 @@ import {
   Alert,
   FlatList,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -177,7 +178,24 @@ export function CourseSelectWorkspace({ turn, onBack, onSessionExpired }: Props)
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [kw, setKw] = useState('');
+  const [campus, setCampus] = useState<string>('');
   const [busy, setBusy] = useState<string | null>(null);
+
+  const campusOptions = useMemo(() => {
+    if (!data) return [];
+    const seen = new Set<string>();
+    const list: string[] = [];
+    for (const c of data.all) {
+      for (const l of c.lessons) {
+        const name = attrName(l.campus);
+        if (name && !seen.has(name)) {
+          seen.add(name);
+          list.push(name);
+        }
+      }
+    }
+    return list;
+  }, [data]);
 
   const load = useCallback(
     async (refresh?: boolean) => {
@@ -315,13 +333,23 @@ export function CourseSelectWorkspace({ turn, onBack, onSessionExpired }: Props)
   const allFiltered = useMemo(() => {
     if (!data) return [];
     const q = kw.trim().toLowerCase();
-    if (!q) return data.all;
-    return data.all.filter(
-      (c) =>
-        (c.nameZh || '').toLowerCase().includes(q) ||
-        (c.code || '').toLowerCase().includes(q),
-    );
-  }, [data, kw]);
+    const base = data.all;
+    if (!q && !campus) return base;
+    const out: CourseBrowse[] = [];
+    for (const c of base) {
+      if (q && !(c.nameZh || '').toLowerCase().includes(q) && !(c.code || '').toLowerCase().includes(q)) {
+        continue;
+      }
+      if (!campus) {
+        out.push(c);
+        continue;
+      }
+      const lessons = c.lessons.filter((l) => attrName(l.campus) === campus);
+      if (!lessons.length) continue;
+      out.push({ ...c, lessons });
+    }
+    return out;
+  }, [data, kw, campus]);
 
   const repairedOpen = data?.repaired.filter((r) => r.lessons.length > 0).length ?? 0;
   const selectedCount = data?.selected.length ?? 0;
@@ -502,12 +530,43 @@ export function CourseSelectWorkspace({ turn, onBack, onSessionExpired }: Props)
           <Text style={styles.statsText}>已选 {selectedCount} 门（{credits} 学分）</Text>
           <Text style={styles.statsText}>
             {tab === 'all'
-              ? `可开课课程 ${data.all.length} 门`
+              ? `可开课课程 ${allFiltered.length} 门`
               : tab === 'repair'
                 ? `重修未通过 ${data.repaired.length} 门（可开课 ${repairedOpen}）`
                 : `本批次 ${data.selected.length} 门`}
           </Text>
         </View>
+      ) : null}
+
+      {tab === 'all' && !loading && !error && data && campusOptions.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.campusRow}
+          style={{ flexGrow: 0 }}
+        >
+          <TouchableOpacity
+            style={[styles.campusChip, campus === '' && styles.campusChipActive]}
+            onPress={() => setCampus('')}
+          >
+            <Text style={[styles.campusChipText, campus === '' && styles.campusChipTextActive]}>
+              全部校区
+            </Text>
+          </TouchableOpacity>
+          {campusOptions.map((name) => (
+            <TouchableOpacity
+              key={name}
+              style={[styles.campusChip, campus === name && styles.campusChipActive]}
+              onPress={() => setCampus(campus === name ? '' : name)}
+            >
+              <Text
+                style={[styles.campusChipText, campus === name && styles.campusChipTextActive]}
+              >
+                {name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       ) : null}
 
       {tab === 'all' && !loading && !error && data ? (
@@ -550,7 +609,11 @@ export function CourseSelectWorkspace({ turn, onBack, onSessionExpired }: Props)
             keyExtractor={(item) => String(item.id)}
             contentContainerStyle={styles.listContent}
             keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={<Text style={styles.emptyText}>{kw ? '没有匹配的课程' : '当前批次暂无可选课程数据'}</Text>}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>
+                {kw || campus ? '没有匹配的课程' : '当前批次暂无可选课程数据'}
+              </Text>
+            }
             renderItem={({ item }) => (
               <TouchableOpacity key={item.id} activeOpacity={0.8} onPress={() => tapCourse(item.id)}>
                 {allCard(item)}
@@ -604,6 +667,18 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.background,
   },
+  campusRow: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.xs },
+  campusChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  campusChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  campusChipText: { fontSize: 12, color: colors.textSecondary },
+  campusChipTextActive: { color: '#fff', fontWeight: '600' },
   searchInput: { flex: 1, paddingVertical: 6, fontSize: 13, color: colors.text },
   listContent: { paddingBottom: spacing.xl },
   card: {

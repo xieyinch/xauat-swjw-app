@@ -9,9 +9,11 @@ interface Props {
   title: string;
   uri: string;
   onClose: () => void;
+  /** 是否处于前台可见状态；常驻承载时用于停用返回键监听 */
+  active?: boolean;
 }
 
-export function LibraryScreen({ title, uri, onClose }: Props) {
+export function LibraryScreen({ title, uri, onClose, active = true }: Props) {
   const webViewRef = useRef<PortalWebViewHandle>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const canGoBackRef = useRef(false);
@@ -28,10 +30,10 @@ export function LibraryScreen({ title, uri, onClose }: Props) {
   }, [onClose]);
 
   useEffect(() => {
-    if (Platform.OS !== 'android') return;
+    if (Platform.OS !== 'android' || !active) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', handleBack);
     return () => subscription.remove();
-  }, [handleBack]);
+  }, [handleBack, active]);
 
   return (
     <View style={styles.container}>

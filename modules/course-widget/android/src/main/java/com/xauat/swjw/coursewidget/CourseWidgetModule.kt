@@ -32,6 +32,14 @@ class CourseWidgetModule : Module() {
   private fun readAccentJson(): String? {
     val context = appContext.reactContext ?: return null
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
+    // 优先复用桌面组件持久化的色板，保证 App 与小组件使用同一份动态色
+    try {
+      val cached = context.getSharedPreferences("course_widget", Context.MODE_PRIVATE)
+        .getString("material_accent", null)
+      if (!cached.isNullOrEmpty()) return cached
+    } catch (e: Exception) {
+      // 忽略，回退到实时读取
+    }
     return try {
       val accent = JSONObject()
       for ((bucket, tones) in MaterialYou.bucketTones) {
@@ -43,6 +51,12 @@ class CourseWidgetModule : Module() {
           }
           accent.put(bucket + tone, String.format("#%06X", 0xFFFFFF and color))
         }
+      }
+      if (accent.length() > 0) {
+        context.getSharedPreferences("course_widget", Context.MODE_PRIVATE)
+          .edit()
+          .putString("material_accent", accent.toString())
+          .apply()
       }
       accent.toString()
     } catch (e: Exception) {

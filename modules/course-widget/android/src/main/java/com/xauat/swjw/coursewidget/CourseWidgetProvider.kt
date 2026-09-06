@@ -12,6 +12,7 @@ import android.net.Uri
 import android.os.Build
 import android.view.View
 import android.widget.RemoteViews
+import org.json.JSONObject
 
 class CourseWidgetProvider : AppWidgetProvider() {
   override fun onUpdate(
@@ -33,6 +34,7 @@ class CourseWidgetProvider : AppWidgetProvider() {
     private val RIGHT_ROWS = intArrayOf(R.id.col_r_row_1, R.id.col_r_row_2, R.id.col_r_row_3)
 
     fun updateAll(context: Context, manager: AppWidgetManager, ids: IntArray) {
+      persistAccentPalette(context)
       val payload = WidgetData.parse(WidgetData.load(context))
       for (id in ids) {
         try {
@@ -95,6 +97,32 @@ class CourseWidgetProvider : AppWidgetProvider() {
     }
 
     // ---- Android 12+ Material You 动态取色 ----
+
+    /** 把取到的 a1 色板写入 SharedPreferences，供 App 进程启动时复用同一份动态色 */
+    private fun persistAccentPalette(context: Context) {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+      try {
+        val tones = intArrayOf(300, 400, 500, 600, 700, 800, 900)
+        val json = JSONObject()
+        for (tone in tones) {
+          val id = accentColorId(tone) ?: continue
+          val color = try {
+            context.getColor(id)
+          } catch (e: Exception) {
+            continue
+          }
+          json.put("a1_$tone", String.format("#%06X", 0xFFFFFF and color))
+        }
+        if (json.length() > 0) {
+          context.getSharedPreferences("course_widget", Context.MODE_PRIVATE)
+            .edit()
+            .putString("material_accent", json.toString())
+            .apply()
+        }
+      } catch (e: Exception) {
+        // 持久化失败不影响组件更新
+      }
+    }
 
     private fun accentColorId(tone: Int): Int? = when (tone) {
       300 -> android.R.color.system_accent1_300

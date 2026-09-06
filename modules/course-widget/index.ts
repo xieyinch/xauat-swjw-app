@@ -53,13 +53,23 @@ export async function getDynamicColors(): Promise<Record<string, string> | null>
 }
 
 /** 同步读取动态强调色，供入口在渲染 UI 前应用主题；低版本/失败返回 null */
+export const dynamicColorDiag = { reason: '' };
+
 export function getDynamicColorsSync(): Record<string, string> | null {
-  if (!nativeModule) return null;
+  if (!nativeModule) {
+    dynamicColorDiag.reason = 'no-native-module';
+    return null;
+  }
   try {
     const raw = nativeModule.getDynamicColorsSync();
-    if (!raw) return null;
+    if (!raw) {
+      dynamicColorDiag.reason = 'native-null';
+      return null;
+    }
+    dynamicColorDiag.reason = 'raw';
     return JSON.parse(raw) as Record<string, string>;
-  } catch {
+  } catch (e) {
+    dynamicColorDiag.reason = `js-error:${(e as Error).message}`;
     return null;
   }
 }

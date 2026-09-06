@@ -14,6 +14,12 @@ export const colors = {
   overlay: 'rgba(0,0,0,0.45)',
 };
 
+/**
+ * 启动取色诊断状态：`ok:色值` 表示已应用动态色，其余为失败原因串。
+ * 仅用于排查动态取色未生效，问题解决后移除。
+ */
+export const themeInitDiagnostics = { state: 'pending' };
+
 export const spacing = {
   xs: 4,
   sm: 8,

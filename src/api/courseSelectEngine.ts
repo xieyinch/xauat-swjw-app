@@ -21,6 +21,17 @@ export interface RepairCourseView extends CourseSelectRepaired {
   selectedLesson: CourseSelectLesson | null;
 }
 
+/** 全部课程页签的单门课程（按课程聚合 addable 教学班） */
+export interface CourseBrowse {
+  id: number;
+  nameZh?: string;
+  nameEn?: string;
+  code?: string;
+  credits?: number;
+  deptName?: string;
+  lessons: CourseSelectLesson[];
+}
+
 const POLL_TRY = 10;
 const POLL_DELAY_MS = 2000;
 
@@ -198,6 +209,7 @@ async function fetchAddableLessonMapByCourse(turnId: number): Promise<Map<number
 export interface SelectWorkspaceData {
   repaired: RepairCourseView[];
   selected: CourseSelectLesson[];
+  all: CourseBrowse[];
 }
 
 /** 载入选课工作台数据：重修课程（含教学班展开）+ 已选课程 */
@@ -224,18 +236,35 @@ export async function fetchSelectWorkspaceData(
     }
     return { ...r, lessons, selectedLesson };
   });
-  return { repaired: views, selected };
+  const all: CourseBrowse[] = [];
+  for (const [cid, lessons] of byCourse) {
+    const first = lessons[0];
+    const c = first?.course;
+    const deptRaw = first?.openDepartment as { nameZh?: string } | null | undefined;
+    const deptCourseRaw = (c as { department?: { nameZh?: string } } | undefined)?.department;
+    all.push({
+      id: cid,
+      nameZh: c?.nameZh,
+      nameEn: c?.nameEn,
+      code: c?.code,
+      credits: c?.credits,
+      deptName: deptRaw?.nameZh ?? deptCourseRaw?.nameZh,
+      lessons,
+    });
+  }
+  all.sort((a, b) => String(a.code ?? '').localeCompare(String(b.code ?? '')));
+  return { repaired: views, selected, all };
 }
 
 /** 操作（选/退课）成功后增量刷新已选状态，避免重拉全量课程 chunk */
 export async function refreshSelectedLessons(
   turnId: number,
-  prevRepaired: RepairCourseView[],
+  prev: SelectWorkspaceData,
 ): Promise<SelectWorkspaceData> {
   const info = await getStudentInfoCached();
   await ensureCourseSelectContext();
   const selected = await fetchSelectedLessons(info.studentId, turnId);
-  const views = prevRepaired.map((r) => {
+  const views = prev.repaired.map((r) => {
     let selectedLesson: CourseSelectLesson | null = null;
     for (const sel of selected) {
       if (sel.course?.id === r.id) {
@@ -245,7 +274,7 @@ export async function refreshSelectedLessons(
     }
     return { ...r, selectedLesson };
   });
-  return { repaired: views, selected };
+  return { repaired: views, selected, all: prev.all };
 }
 
 /** 轮询取结果（add-drop-response / predicate-response 通用形） */

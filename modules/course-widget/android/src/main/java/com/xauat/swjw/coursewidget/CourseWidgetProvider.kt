@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
@@ -34,17 +35,27 @@ class CourseWidgetProvider : AppWidgetProvider() {
     fun updateAll(context: Context, manager: AppWidgetManager, ids: IntArray) {
       val payload = WidgetData.parse(WidgetData.load(context))
       for (id in ids) {
-        val views = RemoteViews(context.packageName, R.layout.course_widget)
-        views.setTextViewText(R.id.widget_header, payload.header)
-        views.setTextViewText(R.id.widget_sub, payload.sub)
-        views.setTextViewText(R.id.col_l_title, payload.leftTitle)
-        views.setTextViewText(R.id.col_r_title, payload.rightTitle)
-        bindColumn(views, payload.left, R.id.col_l_empty, LEFT_HEAD, LEFT_SUB, LEFT_ROWS)
-        bindColumn(views, payload.right, R.id.col_r_empty, RIGHT_HEAD, RIGHT_SUB, RIGHT_ROWS)
-        val monet = monetBackgroundColor(context)
-        if (monet != 0) views.setInt(R.id.widget_root, "setColorFilter", monet)
-        views.setOnClickPendingIntent(R.id.widget_root, openAppIntent(context))
-        manager.updateAppWidget(id, views)
+        try {
+          val views = RemoteViews(context.packageName, R.layout.course_widget)
+          views.setTextViewText(R.id.widget_header, payload.header)
+          views.setTextViewText(R.id.widget_sub, payload.sub)
+          views.setTextViewText(R.id.col_l_title, payload.leftTitle)
+          views.setTextViewText(R.id.col_r_title, payload.rightTitle)
+          bindColumn(views, payload.left, R.id.col_l_empty, LEFT_HEAD, LEFT_SUB, LEFT_ROWS)
+          bindColumn(views, payload.right, R.id.col_r_empty, RIGHT_HEAD, RIGHT_SUB, RIGHT_ROWS)
+          val monet = monetBackgroundColor(context)
+          if (monet != 0) {
+            views.setColorStateList(
+              R.id.widget_root,
+              "setBackgroundTintList",
+              ColorStateList.valueOf(monet)
+            )
+          }
+          views.setOnClickPendingIntent(R.id.widget_root, openAppIntent(context))
+          manager.updateAppWidget(id, views)
+        } catch (e: Exception) {
+          // 单个组件更新失败不影响其它实例与系统
+        }
       }
     }
 

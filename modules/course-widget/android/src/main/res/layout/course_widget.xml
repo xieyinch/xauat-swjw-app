@@ -29,7 +29,7 @@
         android:maxLines="1"
         android:ellipsize="end" />
 
-    <View
+    <TextView
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:layout_marginTop="7dp"
@@ -152,7 +152,7 @@
             </LinearLayout>
         </LinearLayout>
 
-        <View
+        <TextView
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:layout_marginStart="7dp"

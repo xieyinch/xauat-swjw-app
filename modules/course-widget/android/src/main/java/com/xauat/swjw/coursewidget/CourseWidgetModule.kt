@@ -19,21 +19,29 @@ class CourseWidgetModule : Module() {
       CourseWidgetProvider.updateAll(context, manager, ids)
     }
 
-    AsyncFunction("getDynamicColors") { ->
-      val context = appContext.reactContext ?: return@AsyncFunction null
-      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return@AsyncFunction null
-      try {
-        val accent = JSONObject()
-        val tones = intArrayOf(300, 400, 500, 600, 700, 800, 900)
-        for (tone in tones) {
-          val id = accentColorId(tone) ?: continue
-          val color = context.getColor(id)
-          accent.put(tone.toString(), String.format("#%06X", 0xFFFFFF and color))
-        }
-        return@AsyncFunction accent.toString()
-      } catch (e: Exception) {
-        null
+    AsyncFunction("getDynamicColors") {
+      readAccentJson()
+    }
+
+    Function("getDynamicColorsSync") {
+      readAccentJson()
+    }
+  }
+
+  private fun readAccentJson(): String? {
+    val context = appContext.reactContext ?: return null
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
+    return try {
+      val accent = JSONObject()
+      val tones = intArrayOf(300, 400, 500, 600, 700, 800, 900)
+      for (tone in tones) {
+        val id = accentColorId(tone) ?: continue
+        val color = context.getColor(id)
+        accent.put(tone.toString(), String.format("#%06X", 0xFFFFFF and color))
       }
+      accent.toString()
+    } catch (e: Exception) {
+      null
     }
   }
 

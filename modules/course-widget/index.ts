@@ -18,6 +18,7 @@ export type CourseWidgetPayload = {
 type CourseWidgetNativeModule = {
   updateCourseWidget: (payload: string) => Promise<void>;
   getDynamicColors: () => Promise<string | null>;
+  getDynamicColorsSync: () => string | null;
 };
 
 let nativeModule: CourseWidgetNativeModule | null = null;
@@ -44,6 +45,18 @@ export async function getDynamicColors(): Promise<Record<string, string> | null>
   if (!nativeModule) return null;
   try {
     const raw = await nativeModule.getDynamicColors();
+    if (!raw) return null;
+    return JSON.parse(raw) as Record<string, string>;
+  } catch {
+    return null;
+  }
+}
+
+/** 同步读取动态强调色，供入口在渲染 UI 前应用主题；低版本/失败返回 null */
+export function getDynamicColorsSync(): Record<string, string> | null {
+  if (!nativeModule) return null;
+  try {
+    const raw = nativeModule.getDynamicColorsSync();
     if (!raw) return null;
     return JSON.parse(raw) as Record<string, string>;
   } catch {

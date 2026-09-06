@@ -24,7 +24,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
         android:text="本周课表"
-        android:textColor="#D7E5FF"
+        android:textColor="#E8FFFFFF"
         android:textSize="11sp"
         android:maxLines="1"
         android:ellipsize="end" />
@@ -64,7 +64,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="无课"
-                android:textColor="#8FB8F5"
+                android:textColor="#99FFFFFF"
                 android:textSize="11sp" />
 
             <LinearLayout
@@ -89,7 +89,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="地点"
-                    android:textColor="#BFD6FF"
+                    android:textColor="#CCFFFFFF"
                     android:textSize="10sp"
                     android:maxLines="1"
                     android:ellipsize="end" />
@@ -117,7 +117,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="地点"
-                    android:textColor="#BFD6FF"
+                    android:textColor="#CCFFFFFF"
                     android:textSize="10sp"
                     android:maxLines="1"
                     android:ellipsize="end" />
@@ -145,7 +145,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="地点"
-                    android:textColor="#BFD6FF"
+                    android:textColor="#CCFFFFFF"
                     android:textSize="10sp"
                     android:maxLines="1"
                     android:ellipsize="end" />
@@ -181,7 +181,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="无课"
-                android:textColor="#8FB8F5"
+                android:textColor="#99FFFFFF"
                 android:textSize="11sp" />
 
             <LinearLayout
@@ -206,7 +206,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="地点"
-                    android:textColor="#BFD6FF"
+                    android:textColor="#CCFFFFFF"
                     android:textSize="10sp"
                     android:maxLines="1"
                     android:ellipsize="end" />
@@ -234,7 +234,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="地点"
-                    android:textColor="#BFD6FF"
+                    android:textColor="#CCFFFFFF"
                     android:textSize="10sp"
                     android:maxLines="1"
                     android:ellipsize="end" />
@@ -262,7 +262,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="地点"
-                    android:textColor="#BFD6FF"
+                    android:textColor="#CCFFFFFF"
                     android:textSize="10sp"
                     android:maxLines="1"
                     android:ellipsize="end" />

@@ -6,7 +6,9 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.view.View
 import android.widget.RemoteViews
 
@@ -39,6 +41,8 @@ class CourseWidgetProvider : AppWidgetProvider() {
         views.setTextViewText(R.id.col_r_title, payload.rightTitle)
         bindColumn(views, payload.left, R.id.col_l_empty, LEFT_HEAD, LEFT_SUB, LEFT_ROWS)
         bindColumn(views, payload.right, R.id.col_r_empty, RIGHT_HEAD, RIGHT_SUB, RIGHT_ROWS)
+        val monet = monetBackgroundColor(context)
+        if (monet != 0) views.setInt(R.id.widget_root, "setColorFilter", monet)
         views.setOnClickPendingIntent(R.id.widget_root, openAppIntent(context))
         manager.updateAppWidget(id, views)
       }
@@ -77,6 +81,53 @@ class CourseWidgetProvider : AppWidgetProvider() {
         intent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
       )
+    }
+
+    // ---- Android 12+ Material You 动态取色 ----
+
+    private fun accentColorId(tone: Int): Int? = when (tone) {
+      300 -> android.R.color.system_accent1_300
+      400 -> android.R.color.system_accent1_400
+      500 -> android.R.color.system_accent1_500
+      600 -> android.R.color.system_accent1_600
+      700 -> android.R.color.system_accent1_700
+      800 -> android.R.color.system_accent1_800
+      900 -> android.R.color.system_accent1_900
+      else -> null
+    }
+
+    private fun channelLinear(c: Int): Double {
+      val v = c / 255.0
+      return if (v <= 0.04045) v / 12.92 else Math.pow((v + 0.055) / 1.055, 2.4)
+    }
+
+    private fun relativeLuminance(color: Int): Double {
+      return 0.2126 * channelLinear(Color.red(color)) +
+        0.7152 * channelLinear(Color.green(color)) +
+        0.0722 * channelLinear(Color.blue(color))
+    }
+
+    /** 读取动态强调色色板，挑选足够深（保证白字可读）的色调作为背景；低版本返回 0 表示不覆盖 */
+    private fun monetBackgroundColor(context: Context): Int {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return 0
+      val order = intArrayOf(500, 600, 700, 400, 800, 300, 900)
+      var darkest = 0
+      var darkestLum = 1.1
+      for (tone in order) {
+        val id = accentColorId(tone) ?: continue
+        val color = try {
+          context.getColor(id)
+        } catch (e: Exception) {
+          continue
+        }
+        val lum = relativeLuminance(color)
+        if (lum < darkestLum) {
+          darkestLum = lum
+          darkest = color
+        }
+        if (lum <= 0.18) return color
+      }
+      return darkest
     }
   }
 }

@@ -371,6 +371,11 @@ export interface CustomSelectSwitch {
   selectBulletin: string | null;
   dropBulletin: string | null;
   exchangeBulletin: string | null;
+  /** 默认/选课/退课/换班规则（rule 常量 + value；后端个性化选课配置） */
+  defaultRules?: Array<{ rule: string; value: string | null }>;
+  selectRules?: Array<{ rule: string; value: string | null }>;
+  dropRules?: Array<{ rule: string; value: string | null }>;
+  exchangeRules?: Array<{ rule: string; value: string | null }>;
 }
 
 /** 免修申请窗口信息（来自 applyIndex 页顶部服务端渲染文案） */

@@ -4,7 +4,8 @@ import { FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } fr
 import { FunctionShell } from '../../components/FunctionShell';
 import { ListContainer } from '../../components/ListContainer';
 import { getStudentInfoCached } from '../../api/data';
-import { customSelectApplyHref, fetchCustomSelectSwitches } from '../../api/query';
+import { fetchCustomSelectSwitches } from '../../api/query';
+import { PersonalApplyWorkspace } from './PersonalApplyWorkspace';
 import type { CustomSelectSwitch } from '../../types';
 import { colors, spacing } from '../../theme';
 
@@ -92,7 +93,7 @@ function SwitchCard({ sw, onEnter }: { sw: CustomSelectSwitch; onEnter: () => vo
 
 export function CustomCourseSelectScreen({ onClose, onSessionExpired, openWebPage }: Props) {
   const [switches, setSwitches] = useState<CustomSelectSwitch[]>([]);
-  const [studentId, setStudentId] = useState(0);
+  const [active, setActive] = useState<CustomSelectSwitch | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,8 +104,7 @@ export function CustomCourseSelectScreen({ onClose, onSessionExpired, openWebPag
       else setLoading(true);
       setError(null);
       try {
-        const info = await getStudentInfoCached();
-        setStudentId(info.studentId);
+        await getStudentInfoCached();
         const list = await fetchCustomSelectSwitches();
         setSwitches(list);
       } catch (e) {
@@ -126,15 +126,21 @@ export function CustomCourseSelectScreen({ onClose, onSessionExpired, openWebPag
   }, [load]);
 
   const renderItem = ({ item }: { item: CustomSelectSwitch }) => (
-    <SwitchCard
-      sw={item}
-      onEnter={() => {
-        if (studentId && openWebPage) {
-          openWebPage('个性化选课', customSelectApplyHref(studentId, item));
-        }
-      }}
-    />
+    <SwitchCard sw={item} onEnter={() => setActive(item)} />
   );
+
+  if (active) {
+    return (
+      <FunctionShell title="个性化选课申请" onClose={onClose}>
+        <PersonalApplyWorkspace
+          sw={active}
+          onBack={() => setActive(null)}
+          onSessionExpired={onSessionExpired}
+          openWebPage={openWebPage}
+        />
+      </FunctionShell>
+    );
+  }
 
   return (
     <FunctionShell title="个性化选课申请" onClose={onClose}>

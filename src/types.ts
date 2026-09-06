@@ -446,3 +446,84 @@ export interface RecommendApplyInfo {
   note: string;
   bulletin: string;
 }
+
+// ---------- 学生选课（原生引擎） ----------
+
+/** 教学班内课程概要 */
+export interface CourseSelectLessonCourse {
+  id: number;
+  nameZh?: string;
+  nameEn?: string;
+  code?: string;
+  credits?: number;
+}
+
+export interface SelectTeacher {
+  id?: number;
+  nameZh?: string;
+}
+
+/** dateTimePlace / scheduleGroup.dateTimePlace 的时间地点文案对象 */
+export interface DateTimePlaceText {
+  textZh?: string;
+  textEn?: string;
+  text?: string;
+}
+
+export interface CourseSelectSchedule {
+  id?: number;
+  no?: number;
+  limitCount?: number;
+  default?: boolean;
+  dateTimePlace?: DateTimePlaceText;
+}
+
+/** 选课轮次教学班（addable-lessons chunk / selected-lessons 单元） */
+export interface CourseSelectLesson {
+  id: number;
+  code?: string;
+  nameZh?: string;
+  nameEn?: string;
+  course?: CourseSelectLessonCourse;
+  teachers?: SelectTeacher[];
+  dateTimePlace?: DateTimePlaceText;
+  limitCount?: number;
+  scheduleGroups?: CourseSelectSchedule[];
+  scheduleGroupAssoc?: number | null;
+  campus?: unknown;
+  openDepartment?: { id?: number; nameZh?: string } | null;
+  courseType?: { nameZh?: string } | string | null;
+  courseProperty?: { nameZh?: string } | string | null;
+  pinned?: boolean;
+  needAttend?: boolean;
+  coursePackAssoc?: number | null;
+  retake?: boolean;
+  totalPeriod?: number;
+  enablePreSelect?: boolean;
+  selectionRemark?: string;
+  [k: string]: unknown;
+}
+
+/** 重修/不及格课程行（repaired-courses） */
+export interface CourseSelectRepaired {
+  id: number;
+  nameZh?: string;
+  nameEn?: string;
+  code?: string;
+  credits?: number;
+  score?: number | null;
+  /** NO_PASS=未通过 PASS=通过 SUBSITUTE_PASS=替代通过 */
+  courseSelectPassStatus?: string;
+  substitutedCourseAssoc?: number | null;
+  substituteBuild?: boolean;
+  passed?: boolean;
+  department?: { id?: number; nameZh?: string; code?: string } | null;
+  [k: string]: unknown;
+}
+
+/** add-drop-response 轮询结果 */
+export interface CourseSelectAddDropResult {
+  success?: boolean;
+  resend?: boolean;
+  errorMessage?: { text?: string };
+}

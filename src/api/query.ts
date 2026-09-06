@@ -48,6 +48,20 @@ function parseJson<T>(raw: string): T {
   }
 }
 
+/** 校验 JSON 为数组，否则抛出可读错误（避免把服务端 500/错误对象当数据渲染导致白屏） */
+function parseJsonArray<T>(raw: string, label: string): T[] {
+  const parsed = parseJson<T[]>(raw);
+  if (!Array.isArray(parsed)) {
+    throw new Error(`${label}数据解析失败（服务端返回了异常响应）`);
+  }
+  return parsed;
+}
+
+/** 访问功能模块落地页建立服务端会话上下文（选课/个性化等接口依赖） */
+async function preflightLanding(path: string): Promise<void> {
+  await guardSession(await webFetch(path));
+}
+
 // ---------- 22.03 考试安排 ----------
 
 export async function fetchExamArrange(): Promise<ExamArrangeItem[]> {
@@ -855,10 +869,10 @@ export async function fetchExemptGrades(): Promise<ExemptGradeItem[]> {
   }));
 }
 
-/** 选课轮次列表：先访问批次页建立服务端会话上下文，再 POST 取轮次 JSON */
+/** 选课轮次列表：先访问选课模块落地页建立服务端会话上下文，再 POST 取轮次 JSON */
 export async function fetchCourseSelectTurns(): Promise<CourseSelectTurn[]> {
   const info = await getStudentInfoCached();
-  await guardSession(await webFetch('/student/for-std/course-select/single-student/turns'));
+  await preflightLanding('/student/for-std/course-select');
   const raw = guardSession(
     await webFetch('/student/ws/for-std/course-select/open-turns', {
       method: 'POST',
@@ -866,18 +880,19 @@ export async function fetchCourseSelectTurns(): Promise<CourseSelectTurn[]> {
       body: `bizTypeId=2&studentId=${info.studentId}`,
     }),
   );
-  return parseJson<CourseSelectTurn[]>(raw);
+  return parseJsonArray<CourseSelectTurn>(raw, '选课轮次');
 }
 
-/** 个性化选课开关列表 */
+/** 个性化选课开关列表（先访问模块落地页建立上下文） */
 export async function fetchCustomSelectSwitches(): Promise<CustomSelectSwitch[]> {
   const info = await getStudentInfoCached();
+  await preflightLanding('/student/for-std/course-select-apply');
   const raw = guardSession(
     await webFetch(
       `/student/ws/for-std/custom-course-select-apply/open-switches?bizTypeId=2&studentId=${info.studentId}`,
     ),
   );
-  return parseJson<CustomSelectSwitch[]>(raw);
+  return parseJsonArray<CustomSelectSwitch>(raw, '个性化选课开关');
 }
 
 // ---------- 深链（原生列表页进入 WebView 承接操作） ----------

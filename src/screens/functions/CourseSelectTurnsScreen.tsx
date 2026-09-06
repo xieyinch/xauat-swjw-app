@@ -3,8 +3,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { FunctionShell } from '../../components/FunctionShell';
 import { ListContainer } from '../../components/ListContainer';
-import { getStudentInfoCached } from '../../api/data';
-import { courseSelectTurnHref, fetchCourseSelectTurns } from '../../api/query';
+import { fetchOpenTurns } from '../../api/courseSelectEngine';
+import { CourseSelectWorkspace } from './CourseSelectWorkspace';
 import type { CourseSelectTurn } from '../../types';
 import { colors, spacing } from '../../theme';
 
@@ -85,9 +85,9 @@ function Card({ turn, onEnter }: { turn: CourseSelectTurn; onEnter: () => void }
   );
 }
 
-export function CourseSelectTurnsScreen({ onClose, onSessionExpired, openWebPage }: Props) {
+export function CourseSelectTurnsScreen({ onClose, onSessionExpired }: Props) {
   const [turns, setTurns] = useState<CourseSelectTurn[]>([]);
-  const [studentId, setStudentId] = useState(0);
+  const [activeTurn, setActiveTurn] = useState<CourseSelectTurn | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,9 +98,7 @@ export function CourseSelectTurnsScreen({ onClose, onSessionExpired, openWebPage
       else setLoading(true);
       setError(null);
       try {
-        const info = await getStudentInfoCached();
-        setStudentId(info.studentId);
-        const list = await fetchCourseSelectTurns();
+        const list = await fetchOpenTurns();
         setTurns(list);
       } catch (e) {
         if ((e as Error).name === 'SessionExpiredError') {
@@ -121,27 +119,28 @@ export function CourseSelectTurnsScreen({ onClose, onSessionExpired, openWebPage
   }, [load]);
 
   const renderItem = ({ item }: { item: CourseSelectTurn }) => (
-    <Card
-      turn={item}
-      onEnter={() => {
-        if (studentId && openWebPage) {
-          openWebPage('学生选课', courseSelectTurnHref(studentId, item.id));
-        }
-      }}
-    />
+    <Card turn={item} onEnter={() => setActiveTurn(item)} />
   );
 
   return (
     <FunctionShell title="选课" onClose={onClose}>
-      <ListContainer loading={loading} error={error} onRetry={() => load()} emptyIcon="albums-outline" emptyText="暂无开放的选课批次">
-        <FlatList
-          data={turns}
-          keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
-          renderItem={renderItem}
+      {activeTurn ? (
+        <CourseSelectWorkspace
+          turn={activeTurn}
+          onBack={() => setActiveTurn(null)}
+          onSessionExpired={onSessionExpired}
         />
-      </ListContainer>
+      ) : (
+        <ListContainer loading={loading} error={error} onRetry={() => load()} emptyIcon="albums-outline" emptyText="暂无开放的选课批次">
+          <FlatList
+            data={turns}
+            keyExtractor={(item) => String(item.id)}
+            contentContainerStyle={styles.listContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
+            renderItem={renderItem}
+          />
+        </ListContainer>
+      )}
     </FunctionShell>
   );
 }

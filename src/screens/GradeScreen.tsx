@@ -201,14 +201,14 @@ export function GradeScreen({ onSessionExpired, onClose }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   semesterBar: { flexGrow: 0, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  chip: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: 16, backgroundColor: colors.surface, marginRight: spacing.sm },
+  chip: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: 16, backgroundColor: colors.surfaceContainer, marginRight: spacing.sm },
   chipActive: { backgroundColor: colors.primary },
   chipText: { fontSize: 13, color: colors.text },
   chipTextActive: { color: '#fff', fontWeight: '600' },
   statsRow: {
     flexDirection: 'row',
     marginHorizontal: spacing.lg,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceContainer,
     borderRadius: 12,
     paddingVertical: spacing.md,
     marginBottom: spacing.sm,

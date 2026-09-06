@@ -1,6 +1,8 @@
 export const colors = {
   primary: '#0A66C2',
   primaryDark: '#0B4F94',
+  /** 壁纸取出的浅色容器色（卡片/大区块底），无动态取色时回退为 surface */
+  surfaceContainer: '#F5F7FA',
   background: '#FFFFFF',
   surface: '#F5F7FA',
   text: '#1F2329',
@@ -36,13 +38,53 @@ function luminance(hex: string): number {
   );
 }
 
-/** 从 Material You 动态色板中挑选适合白字/浅底主色的深色强调色 */
+function toRgb(hex: string): [number, number, number] {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  const n = m ? parseInt(m[1], 16) : 0;
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+}
+
+function mixWithWhite(hex: string, ratio: number): string {
+  const [r, g, b] = toRgb(hex);
+  const t = (v: number) => Math.round(v + (255 - v) * ratio);
+  return `#${((1 << 24) | (t(r) << 16) | (t(g) << 8) | t(b)).toString(16).slice(1).toUpperCase()}`;
+}
+
+/** 将给定色抬升到目标亮度，得到同色相的浅色容器色 */
+function lightenTo(hex: string, target: number): string {
+  const L = luminance(hex);
+  if (L >= target) return hex;
+  const ratio = (target - L) / (1 - L);
+  return mixWithWhite(hex, ratio);
+}
+
+const deepTones = ['500', '600', '700', '800', '900'];
+const lightTones = ['300', '400', '500'];
+
+function pick(accent: Record<string, string>, bucket: string, tone: string): string | undefined {
+  return accent[`${bucket}_${tone}`];
+}
+
+/**
+ * 应用 Material You 动态主题。accent 结构为扁平键：a1_500 / a2_500 / n1_500 / n2_500
+ *（a1=主强调色 accent1，a2=次级强调色 accent2，n1/n2=中性色 neutral1/neutral2，tone 300-900）
+ * 无动态取色（低版本/失败）时保持默认品牌色，界面观感不变。
+ */
 export function applyDynamicTheme(accent: Record<string, string>): void {
-  const tones = ['500', '600', '700', '800', '900'];
-  const available = tones.filter((t) => accent[t]);
-  const primary = available.find((t) => luminance(accent[t]) <= 0.18) ?? available[available.length - 1];
-  if (primary) colors.primary = accent[primary];
-  const darkerIdx = available.indexOf(primary) + 1;
-  const darker = available.slice(darkerIdx).find((t) => accent[t] !== colors.primary) ?? available[available.length - 1];
-  if (darker) colors.primaryDark = accent[darker];
+  const a1Available = deepTones.filter((t) => pick(accent, 'a1', t));
+
+  // 主强调色：取亮度足够的深色 tone，保证白字可读；与默认品牌蓝同深度偏好
+  const primaryTone = a1Available.find((t) => luminance(pick(accent, 'a1', t)!) <= 0.18) ?? a1Available[a1Available.length - 1];
+  if (primaryTone) {
+    colors.primary = accent[`a1_${primaryTone}`];
+    const darkerTones = deepTones.slice(deepTones.indexOf(primaryTone) + 1);
+    const darker = darkerTones.find((t) => accent[`a1_${t}`] !== colors.primary) ?? a1Available[a1Available.length - 1];
+    if (darker) colors.primaryDark = accent[`a1_${darker}`];
+  }
+
+  // 浅色容器色：以 accent1 最浅可用 tone 抬高亮度，得到铺满卡片/大区块的壁纸同色系浅色
+  const containerBase =
+    lightTones.map((t) => pick(accent, 'a1', t)).find((v): v is string => !!v) ??
+    colors.primary;
+  colors.surfaceContainer = lightenTo(containerBase, 0.86);
 }

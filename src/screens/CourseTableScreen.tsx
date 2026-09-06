@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceContainer,
     marginRight: spacing.sm,
   },
   chipActive: { backgroundColor: colors.primary },

@@ -2,6 +2,7 @@ package com.xauat.swjw.coursewidget
 
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
+import android.content.Context
 import android.os.Build
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -33,11 +34,18 @@ class CourseWidgetModule : Module() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
     return try {
       val accent = JSONObject()
+      val buckets = listOf(
+        "a1" to "system_accent1_",
+        "a2" to "system_accent2_",
+        "n1" to "system_neutral1_",
+        "n2" to "system_neutral2_"
+      )
       val tones = intArrayOf(300, 400, 500, 600, 700, 800, 900)
-      for (tone in tones) {
-        val id = accentColorId(tone) ?: continue
-        val color = context.getColor(id)
-        accent.put(tone.toString(), String.format("#%06X", 0xFFFFFF and color))
+      for ((bucket, prefix) in buckets) {
+        for (tone in tones) {
+          val color = dynamicResourceColor(context, prefix + tone) ?: continue
+          accent.put(bucket + tone, String.format("#%06X", 0xFFFFFF and color))
+        }
       }
       accent.toString()
     } catch (e: Exception) {
@@ -45,14 +53,14 @@ class CourseWidgetModule : Module() {
     }
   }
 
-  private fun accentColorId(tone: Int): Int? = when (tone) {
-    300 -> android.R.color.system_accent1_300
-    400 -> android.R.color.system_accent1_400
-    500 -> android.R.color.system_accent1_500
-    600 -> android.R.color.system_accent1_600
-    700 -> android.R.color.system_accent1_700
-    800 -> android.R.color.system_accent1_800
-    900 -> android.R.color.system_accent1_900
-    else -> null
+  /** 反射读取动态取色资源，避免直接引用低版本不存在/编译期缺失的资源常量 */
+  private fun dynamicResourceColor(context: Context, resourceName: String): Int? {
+    return try {
+      val field = android.R.color::class.java.getField(resourceName)
+      val id = field.getInt(null)
+      context.getColor(id)
+    } catch (e: Exception) {
+      null
+    }
   }
 }

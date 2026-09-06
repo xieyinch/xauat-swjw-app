@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
   examTime: {
     width: 92,
     marginRight: spacing.md,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceContainer,
     borderRadius: 10,
     paddingVertical: spacing.sm,
     alignItems: 'center',

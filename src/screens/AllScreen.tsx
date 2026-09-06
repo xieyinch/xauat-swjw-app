@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     height: 38,
     borderRadius: 19,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceContainer,
     gap: spacing.sm,
   },
   searchInput: { flex: 1, fontSize: 14, color: colors.text, padding: 0 },

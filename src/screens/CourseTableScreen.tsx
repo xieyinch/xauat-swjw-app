@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -11,7 +11,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { fetchCourseTable, fetchCourseTableRaw, fetchSemesters, resolveCurrentSemester } from '../api/data';
+import { fetchCourseTable, fetchCourseTableRaw, fetchSemesters, rankSemesterCandidates, resolveCurrentSemester } from '../api/data';
 import { inWeek } from '../api/parsers';
 import { FunctionShell } from '../components/FunctionShell';
 import { refreshCourseWidget } from '../widget/courseWidget';
@@ -57,6 +57,7 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
 
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [semesterId, setSemesterId] = useState<number | null>(null);
+  const preloadedTableRef = useRef<{ sid: number; data: CourseTableData } | null>(null);
   const [table, setTable] = useState<CourseTableData | null>(null);
   const [week, setWeek] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -76,12 +77,43 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
     setDebugVisible(true);
   }, [semesterId]);
 
+  const adoptTable = useCallback((data: CourseTableData) => {
+    setTable(data);
+    refreshCourseWidget(data);
+    const total = Math.max(1, data.totalWeeks || 1);
+    const cw = Math.min(Math.max(1, data.currentWeek || 1), total);
+    setWeek((w) => {
+      if (w > total) return cw;
+      if (w === 1) return cw;
+      return w;
+    });
+  }, []);
+
   const loadSemesters = useCallback(async () => {
     try {
       const list = await fetchSemesters();
       setSemesters(list);
-      const current = resolveCurrentSemester(list);
-      if (current) setSemesterId(current.id);
+      const preferred = resolveCurrentSemester(list);
+      if (!preferred) return;
+      let chosen: Semester = preferred;
+      // 默认学期若有课程数据则直接用；否则自动跳到最近的「有课」学期，避免初次打开空白
+      for (const s of rankSemesterCandidates(list, preferred.id).slice(0, 6)) {
+        try {
+          const data = await fetchCourseTable(s.id);
+          if (data.lessons.length > 0) {
+            preloadedTableRef.current = { sid: s.id, data };
+            chosen = s;
+            break;
+          }
+        } catch (e) {
+          if ((e as Error).name === 'SessionExpiredError') {
+            onSessionExpired();
+            return;
+          }
+          // 单个学期读取失败则跳过，继续探测更近的其它学期
+        }
+      }
+      setSemesterId(chosen.id);
     } catch (e) {
       if ((e as Error).name === 'SessionExpiredError') {
         onSessionExpired();
@@ -98,15 +130,7 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
       setError(null);
       try {
         const data = await fetchCourseTable(sid);
-        setTable(data);
-        refreshCourseWidget(data);
-        const total = Math.max(1, data.totalWeeks || 1);
-        const cw = Math.min(Math.max(1, data.currentWeek || 1), total);
-        setWeek((w) => {
-          if (w > total) return cw;
-          if (w === 1) return cw;
-          return w;
-        });
+        adoptTable(data);
       } catch (e) {
         if ((e as Error).name === 'SessionExpiredError') {
           onSessionExpired();
@@ -118,7 +142,7 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
         setRefreshing(false);
       }
     },
-    [onSessionExpired],
+    [onSessionExpired, adoptTable],
   );
 
   useEffect(() => {
@@ -126,10 +150,17 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
   }, [loadSemesters]);
 
   useEffect(() => {
-    if (semesterId != null) {
-      loadTable(semesterId);
+    if (semesterId == null) return;
+    const pre = preloadedTableRef.current;
+    if (pre && pre.sid === semesterId) {
+      preloadedTableRef.current = null;
+      setError(null);
+      adoptTable(pre.data);
+      setLoading(false);
+      return;
     }
-  }, [semesterId, loadTable]);
+    loadTable(semesterId);
+  }, [semesterId, loadTable, adoptTable]);
 
   const totalUnits = useMemo(() => {
     if (!table) return 12;

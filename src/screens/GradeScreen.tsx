@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { fetchGrades, fetchSemesters, getStudentInfoCached, resolveCurrentSemester } from '../api/data';
+import { fetchGrades, fetchSemesters, getStudentInfoCached, rankSemesterCandidates, resolveCurrentSemester } from '../api/data';
 import { FunctionShell } from '../components/FunctionShell';
 import type { GradeData, Semester } from '../types';
 import { colors, spacing } from '../theme';
@@ -24,6 +24,7 @@ interface Props {
 export function GradeScreen({ onSessionExpired, onClose }: Props) {
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [semesterId, setSemesterId] = useState<number | null>(null);
+  const preloadedGradesRef = useRef<{ sid: number; grades: GradeData } | null>(null);
   const [grades, setGrades] = useState<GradeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -33,8 +34,28 @@ export function GradeScreen({ onSessionExpired, onClose }: Props) {
     try {
       const list = await fetchSemesters();
       setSemesters(list);
-      const current = resolveCurrentSemester(list);
-      if (current) setSemesterId(current.id);
+      const preferred = resolveCurrentSemester(list);
+      if (!preferred) return;
+      const info = await getStudentInfoCached();
+      let chosen: Semester = preferred;
+      // 默认学期若有成绩则直接用；否则自动跳到最近的「有成绩」学期，避免初次打开空白
+      for (const s of rankSemesterCandidates(list, preferred.id).slice(0, 6)) {
+        try {
+          const data = await fetchGrades(info.studentId, s.id);
+          if (data.items.length > 0) {
+            preloadedGradesRef.current = { sid: s.id, grades: data };
+            chosen = s;
+            break;
+          }
+        } catch (e) {
+          if ((e as Error).name === 'SessionExpiredError') {
+            onSessionExpired();
+            return;
+          }
+          // 单个学期读取失败则跳过，继续探测更近的其它学期
+        }
+      }
+      setSemesterId(chosen.id);
     } catch (e) {
       if ((e as Error).name === 'SessionExpiredError') {
         onSessionExpired();
@@ -72,7 +93,16 @@ export function GradeScreen({ onSessionExpired, onClose }: Props) {
   }, [loadSemesters]);
 
   useEffect(() => {
-    if (semesterId != null) loadGrades(semesterId);
+    if (semesterId == null) return;
+    const pre = preloadedGradesRef.current;
+    if (pre && pre.sid === semesterId) {
+      preloadedGradesRef.current = null;
+      setError(null);
+      setGrades(pre.grades);
+      setLoading(false);
+      return;
+    }
+    loadGrades(semesterId);
   }, [semesterId, loadGrades]);
 
   const stats = useMemo(() => {

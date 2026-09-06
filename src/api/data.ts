@@ -64,6 +64,36 @@ export function resolveCurrentSemester(semesters: Semester[]): Semester | null {
   return last || next || semesters[0];
 }
 
+/** 将学期按「与当前日期最相关」排序：preferredId 置顶，其次进行中/刚结束的学期（越近越靠前），无日期与远期学期排最后 */
+export function rankSemesterCandidates(
+  semesters: Semester[],
+  preferredId: number | null,
+): Semester[] {
+  const today = Date.now();
+  const parse = (s?: string): number | null =>
+    s ? new Date(s.replace(/-/g, '/')).getTime() : null;
+  return semesters
+    .map((s) => {
+      let v: number;
+      if (s.id === preferredId) {
+        v = Number.NEGATIVE_INFINITY;
+      } else {
+        const start = parse(s.startDate);
+        const end = parse(s.endDate);
+        if (start == null && end == null) {
+          v = Number.POSITIVE_INFINITY;
+        } else {
+          const st = start ?? today;
+          const en = end ?? start ?? today;
+          v = st <= today ? today - Math.min(en, today) : st - today + 1e8;
+        }
+      }
+      return { s, v };
+    })
+    .sort((a, b) => a.v - b.v)
+    .map((x) => x.s);
+}
+
 /** 学生信息（studentId / 姓名 / 学号） */
 export async function fetchStudentInfo(): Promise<StudentInfo> {
   const gradePage = guardSession(await webFetch(API.gradePage));

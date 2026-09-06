@@ -11,9 +11,11 @@ interface Props {
   onClose: () => void;
   /** 是否处于前台可见状态；常驻承载时用于停用返回键监听 */
   active?: boolean;
+  /** Android 系统返回键直接关闭页面（不沿 H5 历史后退），避免误退回登录态 */
+  systemBackCloses?: boolean;
 }
 
-export function LibraryScreen({ title, uri, onClose, active = true }: Props) {
+export function LibraryScreen({ title, uri, onClose, active = true, systemBackCloses = false }: Props) {
   const webViewRef = useRef<PortalWebViewHandle>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const canGoBackRef = useRef(false);
@@ -24,10 +26,14 @@ export function LibraryScreen({ title, uri, onClose, active = true }: Props) {
   }, []);
 
   const handleBack = useCallback(() => {
+    if (systemBackCloses) {
+      onClose();
+      return true;
+    }
     if (canGoBackRef.current) webViewRef.current?.goBack();
     else onClose();
     return true;
-  }, [onClose]);
+  }, [onClose, systemBackCloses]);
 
   useEffect(() => {
     if (Platform.OS !== 'android' || !active) return;

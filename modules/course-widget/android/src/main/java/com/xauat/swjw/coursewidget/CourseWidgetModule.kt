@@ -34,16 +34,13 @@ class CourseWidgetModule : Module() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
     return try {
       val accent = JSONObject()
-      val buckets = listOf(
-        "a1" to "system_accent1_",
-        "a2" to "system_accent2_",
-        "n1" to "system_neutral1_",
-        "n2" to "system_neutral2_"
-      )
-      val tones = intArrayOf(300, 400, 500, 600, 700, 800, 900)
-      for ((bucket, prefix) in buckets) {
-        for (tone in tones) {
-          val color = dynamicResourceColor(context, prefix + tone) ?: continue
+      for ((bucket, tones) in MaterialYou.bucketTones) {
+        for ((tone, colorId) in tones) {
+          val color = try {
+            context.getColor(colorId)
+          } catch (e: Exception) {
+            continue
+          }
           accent.put(bucket + tone, String.format("#%06X", 0xFFFFFF and color))
         }
       }
@@ -53,14 +50,49 @@ class CourseWidgetModule : Module() {
     }
   }
 
-  /** 反射读取动态取色资源，避免直接引用低版本不存在/编译期缺失的资源常量 */
-  private fun dynamicResourceColor(context: Context, resourceName: String): Int? {
-    return try {
-      val field = android.R.color::class.java.getField(resourceName)
-      val id = field.getInt(null)
-      context.getColor(id)
-    } catch (e: Exception) {
-      null
-    }
+  private object MaterialYou {
+    private val a1 = mapOf(
+      300 to android.R.color.system_accent1_300,
+      400 to android.R.color.system_accent1_400,
+      500 to android.R.color.system_accent1_500,
+      600 to android.R.color.system_accent1_600,
+      700 to android.R.color.system_accent1_700,
+      800 to android.R.color.system_accent1_800,
+      900 to android.R.color.system_accent1_900,
+    )
+    private val a2 = mapOf(
+      300 to android.R.color.system_accent2_300,
+      400 to android.R.color.system_accent2_400,
+      500 to android.R.color.system_accent2_500,
+      600 to android.R.color.system_accent2_600,
+      700 to android.R.color.system_accent2_700,
+      800 to android.R.color.system_accent2_800,
+      900 to android.R.color.system_accent2_900,
+    )
+    private val n1 = mapOf(
+      300 to android.R.color.system_neutral1_300,
+      400 to android.R.color.system_neutral1_400,
+      500 to android.R.color.system_neutral1_500,
+      600 to android.R.color.system_neutral1_600,
+      700 to android.R.color.system_neutral1_700,
+      800 to android.R.color.system_neutral1_800,
+      900 to android.R.color.system_neutral1_900,
+    )
+    private val n2 = mapOf(
+      300 to android.R.color.system_neutral2_300,
+      400 to android.R.color.system_neutral2_400,
+      500 to android.R.color.system_neutral2_500,
+      600 to android.R.color.system_neutral2_600,
+      700 to android.R.color.system_neutral2_700,
+      800 to android.R.color.system_neutral2_800,
+      900 to android.R.color.system_neutral2_900,
+    )
+
+    val bucketTones: List<Pair<String, Map<Int, Int>>> = listOf(
+      "a1" to a1,
+      "a2" to a2,
+      "n1" to n1,
+      "n2" to n2,
+    )
   }
 }

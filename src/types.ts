@@ -326,3 +326,123 @@ export interface MenuCategory {
   title: string;
   functions: MenuFunction[];
 }
+
+/** 时间区间（后端 DateTimeRange 结构） */
+export interface DateTimeRange {
+  startDateTime?: string;
+  endDateTime?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+/** 选课轮次条目（页面 10.09，ws open-turns） */
+export interface CourseSelectTurn {
+  id: number;
+  name: string;
+  bulletin: string | null;
+  openDateTimeText: string;
+  selectDateTimeText: string;
+  dropDateTimeText: string;
+  openDateTimeRange: DateTimeRange | null;
+  selectDateTimeRange: DateTimeRange | null;
+  dropDateTimeRange: DateTimeRange | null;
+  /** 选课规则说明（文本行） */
+  addRulesText: string[];
+  /** 退课规则说明（文本行） */
+  dropRulesText: string[];
+  /** 当前是否允许进入 */
+  allowEnter: boolean;
+  disallowReasons: string[];
+}
+
+/** 个性化选课开关（ws open-switches 单元素） */
+export interface CustomSelectSwitch {
+  id: number;
+  semester: { id: number; nameZh: string; code?: string };
+  /** 选课申请开关 */
+  selectOpen: boolean;
+  selectDateTimeRange: DateTimeRange | null;
+  /** 退课申请开关 */
+  dropOpen: boolean;
+  dropDateTimeRange: DateTimeRange | null;
+  /** 换班申请开关 */
+  exchangeOpen: boolean;
+  exchangeDateTimeRange: DateTimeRange | null;
+  selectBulletin: string | null;
+  dropBulletin: string | null;
+  exchangeBulletin: string | null;
+}
+
+/** 免修申请窗口信息（来自 applyIndex 页顶部服务端渲染文案） */
+export interface ExemptApplyWindow {
+  applyTimeText: string;
+  bulletin: string;
+}
+
+/** 免修申请记录条目（applyIndex 表格行） */
+export interface ExemptApplyRecord {
+  courseText: string;
+  semester: string;
+  applyDate: string;
+  reason: string;
+  auditState: string;
+}
+
+/** 免修成绩条目（query-exempt-study-grade 片段表格行） */
+export interface ExemptGradeItem {
+  courseText: string;
+  semester: string;
+  grade: string;
+  /** 是否加入成绩库 */
+  inGradeBook: string;
+}
+
+/** 免修申请页聚合数据 */
+export interface ExemptStudyData {
+  window: ExemptApplyWindow | null;
+  records: ExemptApplyRecord[];
+  /** 当前业务学期 id（来自页面内联配置，用于新建申请跳转） */
+  semesterId?: number;
+}
+
+// ---------- 通用申请类列表（缓考 / 课程替代 / 放弃成绩 / 意向导师） ----------
+
+/** 申请类列表行：以键值对形式描述单元格 */
+export interface FeatureApplyLine {
+  label: string;
+  value: string;
+}
+
+/** 申请类列表卡片行（title 为主标题，meta/status 用于角标） */
+export interface FeatureApplyRow {
+  /** 分组标签（如缓考申请按学期分组） */
+  group?: string;
+  title: string;
+  meta?: string;
+  status?: string;
+  /** 可申请提示（如缓考「可申请」） */
+  applyNote?: string;
+  lines: FeatureApplyLine[];
+}
+
+/** 学籍异动申请「可申请」类型卡 */
+export interface StdAlterationType {
+  name: string;
+  applyTimeText: string;
+  notice: string;
+  /** 是否有「立即申请」按钮 */
+  canApply: boolean;
+}
+
+/** 学籍异动申请页聚合数据 */
+export interface StdAlterationData {
+  applyTypes: StdAlterationType[];
+  /** 「已申请」页签提示文本（服务端原文，如「无已申请的学籍异动数据」） */
+  appliedText: string;
+}
+
+/** 研究生推免信息（当前为服务端渲染的提示文案） */
+export interface RecommendApplyInfo {
+  note: string;
+  bulletin: string;
+}

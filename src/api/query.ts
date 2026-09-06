@@ -1,21 +1,30 @@
 import type {
   AdminClassCourse,
   CommonFileItem,
+  CourseSelectTurn,
+  CustomSelectSwitch,
+  DegreeApplyRecord,
   EvaluationResult,
   ExamArrangeItem,
   ExamScoreItem,
   ExamSignupItem,
+  ExemptApplyWindow,
+  ExemptGradeItem,
+  ExemptStudyData,
+  FeatureApplyLine,
+  FeatureApplyRow,
   GuidanceRecord,
   LessonSearchItem,
   PrecautionItem,
   ProgramCompletion,
   ProgramCourse,
   ProgramModule,
+  RecommendApplyInfo,
   RoomFreeItem,
   RoomFreeQuery,
+  StdAlterationData,
   StudentInfoEntry,
   StudentInfoGroup,
-  DegreeApplyRecord,
   TutorChangeApply,
   TutorEvaluation,
   TutorInfo,
@@ -23,11 +32,11 @@ import type {
 } from '../types';
 import { SITE } from '../config/site';
 import { isLoginPageText, webFetch } from './bridge';
-import { getStudentInfoCached } from './data';
+import { getStudentInfoCached, SessionExpiredError } from './data';
 import { stripHtmlSafe } from './parsers';
 
 function guardSession(raw: string): string {
-  if (isLoginPageText(raw)) throw new Error('登录已过期，请重新登录');
+  if (isLoginPageText(raw)) throw new SessionExpiredError();
   return raw;
 }
 
@@ -750,4 +759,395 @@ export function parseGuidanceHtml(html: string): GuidanceData {
     records.push({ name: tds[0] ?? '', detail: tds[1] ?? '', content: tds[2] ?? '', attendance: tds[3] ?? '' });
   }
   return { totalCount: totalM ? Number(totalM[1]) : records.length, records };
+}
+
+// ---------- 选课 / 个性化选课 / 免修申请（原生列表页数据） ----------
+
+/**
+ * 免修申请列表「课程信息」等列按表头自适应解析：返回列顺序与表头文本一致的单元格数组。
+ * 仅解析表头同时包含 expected（按顺序）的第一张表格。
+ */
+function parseMappedRows(html: string, expected: string[]): string[][] {
+  const rows: string[][] = [];
+  const tableRe = /<table[^>]*>([\s\S]*?)<\/table>/g;
+  let tm: RegExpExecArray | null;
+  while ((tm = tableRe.exec(html))) {
+    const table = tm[1];
+    const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
+    let tr: RegExpExecArray | null;
+    const local: string[][] = [];
+    let headerTexts: string[] = [];
+    while ((tr = trRe.exec(table))) {
+      const cells = Array.from(tr[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/g)).map((x) =>
+        stripHtmlSafe(x[1]),
+      );
+      if (!cells.length) continue;
+      if (headerTexts.length === 0) {
+        if (expected.some((h) => cells.some((c) => c.includes(h)))) {
+          headerTexts = cells;
+          continue;
+        }
+      }
+      local.push(cells);
+    }
+    if (!headerTexts.length) continue;
+    const order = expected.map((h) => headerTexts.findIndex((c) => c.includes(h)));
+    if (order.some((i) => i < 0)) continue;
+    for (const cells of local) {
+      rows.push(order.map((i) => cells[i] ?? ''));
+    }
+    break;
+  }
+  return rows;
+}
+
+/** 从免修申请首页提取窗口时间与公告 */
+export function parseExemptApplyWindowHtml(html: string): ExemptApplyWindow {
+  let applyTimeText = '';
+  const timeSeg = html.match(
+    /免修申请时间[\s\S]{0,600}?(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s*~\s*(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/,
+  );
+  if (timeSeg) applyTimeText = `${timeSeg[1]} ~ ${timeSeg[2]}`;
+  let bulletin = '';
+  const bi = html.indexOf('id="bulletin"');
+  if (bi >= 0) {
+    let seg = html.slice(bi, bi + 3000);
+    seg = seg.replace(/<span[^>]*>[\s\S]{0,20}?公告[\s\S]{0,20}?<\/span>/, '');
+    const bm = seg.match(/<span[^>]*>([\s\S]*?)<\/span>/);
+    if (bm) bulletin = stripHtmlSafe(bm[1]);
+  }
+  return { applyTimeText, bulletin };
+}
+
+/** 免修申请：首页（申请记录 + 窗口公告） */
+export async function fetchExemptStudyData(): Promise<ExemptStudyData> {
+  const info = await getStudentInfoCached();
+  const raw = guardSession(
+    await webFetch(`/student/for-std/exempt-study-apply/applyIndex/${info.studentId}`),
+  );
+  const rows = parseMappedRows(raw, ['课程信息', '学期', '申请日期', '申请原因', '审核状态']);
+  const semesterM = raw.match(/semesterId\s*:\s*(\d+)/);
+  return {
+    window: parseExemptApplyWindowHtml(raw),
+    records: rows.map((r) => ({
+      courseText: r[0] ?? '',
+      semester: r[1] ?? '',
+      applyDate: r[2] ?? '',
+      reason: r[3] ?? '',
+      auditState: r[4] ?? '',
+    })),
+    semesterId: semesterM ? Number(semesterM[1]) : undefined,
+  };
+}
+
+/** 免修成绩：query-exempt-study-grade 返回的表格片段 */
+export async function fetchExemptGrades(): Promise<ExemptGradeItem[]> {
+  const info = await getStudentInfoCached();
+  const raw = guardSession(
+    await webFetch(`/student/for-std/exempt-study-apply/query-exempt-study-grade/${info.studentId}`),
+  );
+  const rows = parseMappedRows(raw, ['课程信息', '学期', '免修成绩', '是否加入成绩库']);
+  return rows.map((r) => ({
+    courseText: r[0] ?? '',
+    semester: r[1] ?? '',
+    grade: r[2] ?? '',
+    inGradeBook: r[3] ?? '',
+  }));
+}
+
+/** 选课轮次列表：先访问批次页建立服务端会话上下文，再 POST 取轮次 JSON */
+export async function fetchCourseSelectTurns(): Promise<CourseSelectTurn[]> {
+  const info = await getStudentInfoCached();
+  await guardSession(await webFetch('/student/for-std/course-select/single-student/turns'));
+  const raw = guardSession(
+    await webFetch('/student/ws/for-std/course-select/open-turns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+      body: `bizTypeId=2&studentId=${info.studentId}`,
+    }),
+  );
+  return parseJson<CourseSelectTurn[]>(raw);
+}
+
+/** 个性化选课开关列表 */
+export async function fetchCustomSelectSwitches(): Promise<CustomSelectSwitch[]> {
+  const info = await getStudentInfoCached();
+  const raw = guardSession(
+    await webFetch(
+      `/student/ws/for-std/custom-course-select-apply/open-switches?bizTypeId=2&studentId=${info.studentId}`,
+    ),
+  );
+  return parseJson<CustomSelectSwitch[]>(raw);
+}
+
+// ---------- 深链（原生列表页进入 WebView 承接操作） ----------
+
+/** 进入指定选课轮次的实际选课页 */
+export function courseSelectTurnHref(studentId: number, turnId: number): string {
+  return `/student/for-std/course-select/${studentId}/turn/${turnId}/select`;
+}
+
+/** 进入个性化选课开关的申请页 */
+export function customSelectApplyHref(studentId: number, sw: CustomSelectSwitch): string {
+  const params = new URLSearchParams({
+    bizTypeId: '2',
+    semesterId: String(sw.semester.id),
+    selectOpen: String(sw.selectOpen),
+    dropOpen: String(sw.dropOpen),
+    exchangeOpen: String(sw.exchangeOpen),
+  });
+  return `/student/for-std/course-select-apply/${studentId}/switch/${sw.id}/apply?${params.toString()}`;
+}
+
+/** 免修申请「新建申请」页 */
+export function exemptNewHref(studentId: number, semesterId?: number): string {
+  const redirect = encodeURIComponent(`/for-std/exempt-study-apply/applyIndex/${studentId}`);
+  const sem = semesterId ? `&semesterId=${semesterId}` : '';
+  return `/student/for-std/exempt-study-apply/new?bizTypeId=2&studentId=${studentId}${sem}&REDIRECT_URL=${redirect}`;
+}
+
+// ---------- 申请类列表（缓考 / 课程替代 / 放弃成绩 / 意向导师 / 学籍异动 / 推免） ----------
+
+interface MappedTableCell {
+  index: number;
+  header: string;
+  value: string;
+}
+
+interface MappedTableRow {
+  group?: string;
+  cells: MappedTableCell[];
+  html: string;
+}
+
+interface ParseTableOptions {
+  /** 表头需全部命中（任一单元格包含该子串） */
+  require?: string[];
+  /** 表头含任一子串即排除该表 */
+  exclude?: string[];
+  /** 分组标题正则：每个匹配（match.index）之前的表格归入该分组 */
+  groupPattern?: RegExp;
+}
+
+function normCell(s: string): string {
+  return stripHtmlSafe(s).replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * 解析页面内所有「表头匹配」的表格：按列把每行映射为 {header,value} 单元格。
+ * 表头为表格首个 <tr>，后续单元格数量与表头不一致的行视为嵌套表头/占位被跳过。
+ */
+function parseMappedTables(html: string, opts: ParseTableOptions): MappedTableRow[] {
+  const groups: { index: number; label: string }[] = [];
+  if (opts.groupPattern) {
+    const re = new RegExp(opts.groupPattern.source, opts.groupPattern.flags.includes('g') ? opts.groupPattern.flags : `${opts.groupPattern.flags}g`);
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html))) {
+      const label = m[1] ?? m[0];
+      if (label != null && m.index != null) groups.push({ index: m.index, label: normCell(label) });
+    }
+  }
+
+  const out: MappedTableRow[] = [];
+  const tableRe = /<table[^>]*>([\s\S]*?)<\/table>/g;
+  let tm: RegExpExecArray | null;
+  while ((tm = tableRe.exec(html))) {
+    const tableStart = tm.index;
+    const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
+    let headers: string[] | null = null;
+    const bodyRows: { html: string; values: string[] }[] = [];
+    let tr: RegExpExecArray | null;
+    while ((tr = trRe.exec(tm[1]))) {
+      const cells = Array.from(tr[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/g)).map((x) => normCell(x[1]));
+      if (!cells.length) continue;
+      if (!headers) {
+        headers = cells;
+        continue;
+      }
+      if (cells.length === headers.length) bodyRows.push({ html: tr[1], values: cells });
+    }
+    if (!headers) continue;
+    if (opts.require && !opts.require.every((r) => headers.some((h) => h.includes(r)))) continue;
+    if (opts.exclude && opts.exclude.some((r) => headers.some((h) => h.includes(r)))) continue;
+
+    let group: string | undefined;
+    if (groups.length) {
+      let best: { index: number; label: string } | null = null;
+      for (const g of groups) {
+        if (g.index < tableStart) best = g;
+        else break;
+      }
+      group = best ? best.label : undefined;
+    }
+
+    for (const row of bodyRows) {
+      const cells: MappedTableCell[] = headers.map((h, i) => ({
+        index: i,
+        header: h,
+        value: row.values[i] ?? '',
+      }));
+      out.push({ group, cells, html: row.html });
+    }
+  }
+  return out;
+}
+
+function cellOf(row: MappedTableRow, labelLike: string[]): MappedTableCell | undefined {
+  return row.cells.find((c) => labelLike.some((l) => c.header.includes(l)));
+}
+
+/** 缓考申请：各学期考试安排表（含可申请状态） */
+export async function fetchExamDelayApplyRows(): Promise<FeatureApplyRow[]> {
+  const raw = guardSession(await webFetch('/student/for-std/exam-delay-apply'));
+  const rows = parseMappedTables(raw, {
+    require: ['课程名称', '考场'],
+    groupPattern: /semester-exam-delay-apply">([^<]+)<\/span>/g,
+  });
+  const result: FeatureApplyRow[] = [];
+  for (const row of rows) {
+    const name = cellOf(row, ['课程名称']);
+    const type = cellOf(row, ['考试类型']);
+    const time = cellOf(row, ['考试时间']);
+    const room = cellOf(row, ['考场']);
+    const state = cellOf(row, ['审核状态']);
+    if (!name) continue;
+    let title = name.value;
+    const metaM = title.match(/课程代码[:：]\s*(\S+)/);
+    let meta: string | undefined;
+    if (metaM) {
+      meta = `课程代码：${metaM[1]}`;
+      title = title.replace(/课程代码[:：]\s*\S+/, '').replace(/\s+/g, ' ').trim();
+    }
+    const canApply = /<button[^>]*class="[^"]*btn-apply[^"]*"[^>]*>/.test(row.html)
+      && !/<button[^>]*class="[^"]*btn-apply[^"]*"[^>]*disabled/.test(row.html);
+    const status = state && state.value.trim() ? state.value.trim() : undefined;
+    const lines: FeatureApplyLine[] = [];
+    for (const c of [type, time, room]) {
+      if (c && c.value.trim()) lines.push({ label: c.header.replace(/\s+/g, ' '), value: c.value });
+    }
+    result.push({ group: row.group, title: title || '—', meta, status, applyNote: canApply ? '可申请' : undefined, lines });
+  }
+  return result;
+}
+
+/** 课程替代申请：「我的替代课程申请单」记录（当前无数据时为服务端空表） */
+export async function fetchCourseSubstituteRows(): Promise<FeatureApplyRow[]> {
+  const raw = guardSession(await webFetch('/student/for-std/course-substitute-apply'));
+  const rows = parseMappedTables(raw, { require: ['申请理由', '审核状态'] });
+  const result: FeatureApplyRow[] = [];
+  for (const row of rows) {
+    const from = cellOf(row, ['被替代课程']);
+    const to = cellOf(row, ['替代课程']);
+    const reason = cellOf(row, ['申请理由']);
+    const applyTime = cellOf(row, ['申请时间']);
+    const state = cellOf(row, ['审核状态']);
+    if ((!from || !from.value) && (!to || !to.value)) continue;
+    const lines: FeatureApplyLine[] = [];
+    if (from && from.value) lines.push({ label: '被替代课程', value: from.value });
+    if (to && to.value) lines.push({ label: '替代课程', value: to.value });
+    if (reason && reason.value) lines.push({ label: '申请理由', value: reason.value });
+    if (applyTime && applyTime.value) lines.push({ label: '申请时间', value: applyTime.value });
+    result.push({
+      title: from && from.value ? from.value : '未填写被替代课程',
+      status: state && state.value ? state.value : undefined,
+      lines,
+    });
+  }
+  return result;
+}
+
+/** 放弃成绩申请：「我的放弃成绩申请单」记录列表 */
+export async function fetchGradeAbandonRows(): Promise<FeatureApplyRow[]> {
+  const raw = guardSession(await webFetch('/student/for-std/grade-abandon-apply'));
+  const rows = parseMappedTables(raw, { require: ['申请时间', '审核状态'], exclude: ['操作'] });
+  const result: FeatureApplyRow[] = [];
+  for (const row of rows) {
+    const name = cellOf(row, ['课程名称']);
+    const code = cellOf(row, ['课程代码']);
+    const classCode = cellOf(row, ['教学班代码']);
+    const semester = cellOf(row, ['学期']);
+    const credits = cellOf(row, ['学分']);
+    const score = cellOf(row, ['成绩']);
+    const applyTime = cellOf(row, ['申请时间']);
+    const state = cellOf(row, ['审核状态']);
+    if (!name || !name.value) continue;
+    const meta = [classCode && classCode.value, semester && semester.value].filter(Boolean).join(' · ');
+    const lines: FeatureApplyLine[] = [];
+    for (const c of [code, credits, score, applyTime]) {
+      if (c && c.value) lines.push({ label: c.header.replace(/\s+/g, ' '), value: c.value });
+    }
+    result.push({
+      title: name.value,
+      meta: meta || undefined,
+      status: state && state.value ? state.value : undefined,
+      lines,
+    });
+  }
+  return result;
+}
+
+/** 选择意向导师：导师仓库存量列表（当前为空即服务端无开放导师） */
+export async function fetchTutorWarehouseRows(): Promise<FeatureApplyRow[]> {
+  const raw = guardSession(await webFetch('/student/for-std/select/std-tutor-apply'));
+  const rows = parseMappedTables(raw, { require: ['导师', '所属部门'] });
+  const seen = new Set<string>();
+  const result: FeatureApplyRow[] = [];
+  for (const row of rows) {
+    const name = cellOf(row, ['导师']);
+    if (!name || !name.value || seen.has(name.value)) continue;
+    seen.add(name.value);
+    const dept = cellOf(row, ['所属部门']);
+    const title = cellOf(row, ['教师职称']);
+    const intro = cellOf(row, ['导师简介']);
+    const lines: FeatureApplyLine[] = [];
+    for (const c of [dept, title]) if (c && c.value) lines.push({ label: c.header, value: c.value });
+    if (intro && intro.value) lines.push({ label: '导师简介', value: intro.value });
+    result.push({ title: name.value, lines });
+  }
+  return result;
+}
+
+/** 学籍异动申请：可申请类型卡 + 已申请页签提示 */
+export async function fetchStdAlterationData(): Promise<StdAlterationData> {
+  const raw = guardSession(await webFetch('/student/for-std/std-alteration-apply'));
+  const applyTypes: StdAlterationData['applyTypes'] = [];
+  const canStart = raw.indexOf('id="canApply"');
+  const haveStart = raw.indexOf('id="haveApply"');
+  const canPane = canStart >= 0 ? raw.slice(canStart, haveStart > canStart ? haveStart : raw.length) : raw;
+  const blocks = canPane.split('<div class="content-item">').slice(1);
+  for (const block of blocks) {
+    const nameM = block.match(/<div class="item-type[^"]*"[^>]*>([\s\S]*?)<\/div>/);
+    const timeM = block.match(/data-text="申请起止时间：">([\s\S]*?)<\/div>/);
+    const noticeM = block.match(/data-text="公告：">([\s\S]*?)<\/div>/);
+    if (!nameM) continue;
+    const timeRaw = timeM ? normCell(timeM[1]) : '';
+    const applyTimeText = timeRaw.replace(/\s*~\s*/g, ' ~ ');
+    applyTypes.push({
+      name: normCell(nameM[1]),
+      applyTimeText,
+      notice: noticeM ? normCell(noticeM[1]) : '',
+      canApply: /立即申请/.test(block),
+    });
+  }
+  let appliedText = '';
+  if (haveStart >= 0) {
+    let seg = raw.slice(haveStart, haveStart + 6000);
+    seg = seg.slice(0, seg.indexOf('id="canApply"') > 0 ? seg.indexOf('id="canApply"') : seg.length);
+    const clean = normCell(seg);
+    const marker = clean.match(/无[^。；;]{0,40}(数据|记录|申请)|暂无[^。；;]{0,40}/);
+    appliedText = marker ? marker[0] : '';
+  }
+  return { applyTypes, appliedText };
+}
+
+/** 研究生推免：当前服务端提示信息 */
+export async function fetchRecommendApplyInfo(): Promise<RecommendApplyInfo> {
+  const raw = guardSession(await webFetch('/student/for-std/recommend-student-apply'));
+  const body = raw.indexOf('<body') >= 0 ? raw.slice(raw.indexOf('<body')) : raw;
+  const clean = normCell(body);
+  const note = clean.replace(/^(×\s*)/, '').trim();
+  return {
+    note: note || '暂无推免信息',
+    bulletin: '',
+  };
 }

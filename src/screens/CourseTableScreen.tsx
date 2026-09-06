@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { fetchCourseTable, fetchCourseTableRaw, fetchSemesters, resolveCurrentSemester } from '../api/data';
 import { inWeek } from '../api/parsers';
+import { FunctionShell } from '../components/FunctionShell';
 import { refreshCourseWidget } from '../widget/courseWidget';
 import type { CourseLesson, CourseTableData, Semester } from '../types';
 import { colors, spacing } from '../theme';
@@ -46,9 +47,11 @@ function colorFor(name: string): string {
 
 interface Props {
   onSessionExpired: () => void;
+  /** 提供时渲染为带关闭按钮的独立页（用于「全部」页里的我的课表入口） */
+  onClose?: () => void;
 }
 
-export function CourseTableScreen({ onSessionExpired }: Props) {
+export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
   const { width: winW } = useWindowDimensions();
   const colW = Math.max((winW - TIME_COL) / 7, 54);
 
@@ -193,7 +196,7 @@ export function CourseTableScreen({ onSessionExpired }: Props) {
   const gridH = totalUnits * ROW_H;
   const gridW = TIME_COL + 7 * colW;
 
-  return (
+  const body = (
     <View style={styles.container}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.semesterBar}>
         {semesters.slice(0, 8).map((s) => {
@@ -347,6 +350,13 @@ export function CourseTableScreen({ onSessionExpired }: Props) {
         </View>
       </Modal>
     </View>
+  );
+
+  if (!onClose) return body;
+  return (
+    <FunctionShell title="我的课表" onClose={onClose}>
+      <View style={styles.container}>{body}</View>
+    </FunctionShell>
   );
 }
 

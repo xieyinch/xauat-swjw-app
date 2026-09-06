@@ -11,14 +11,17 @@ import {
   View,
 } from 'react-native';
 import { fetchGrades, fetchSemesters, getStudentInfoCached, resolveCurrentSemester } from '../api/data';
+import { FunctionShell } from '../components/FunctionShell';
 import type { GradeData, Semester } from '../types';
 import { colors, spacing } from '../theme';
 
 interface Props {
   onSessionExpired: () => void;
+  /** 提供时渲染为带关闭按钮的独立页（用于「全部」页里的成绩信息入口） */
+  onClose?: () => void;
 }
 
-export function GradeScreen({ onSessionExpired }: Props) {
+export function GradeScreen({ onSessionExpired, onClose }: Props) {
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [semesterId, setSemesterId] = useState<number | null>(null);
   const [grades, setGrades] = useState<GradeData | null>(null);
@@ -81,7 +84,7 @@ export function GradeScreen({ onSessionExpired }: Props) {
     return { count: published.length, sumCredits, gpa: gpa.toFixed(2) };
   }, [grades]);
 
-  return (
+  const body = (
     <View style={styles.container}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.semesterBar}>
         {semesters.slice(0, 10).map((s) => {
@@ -155,6 +158,13 @@ export function GradeScreen({ onSessionExpired }: Props) {
         />
       )}
     </View>
+  );
+
+  if (!onClose) return body;
+  return (
+    <FunctionShell title="成绩信息" onClose={onClose}>
+      {body}
+    </FunctionShell>
   );
 }
 

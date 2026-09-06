@@ -17,10 +17,25 @@ import { TutorSelectResultScreen } from '../screens/functions/TutorSelectResultS
 import { TutorEvaluationScreen } from '../screens/functions/TutorEvaluationScreen';
 import { DegreeApplyScreen } from '../screens/functions/DegreeApplyScreen';
 import { TutorChangeApplyScreen } from '../screens/functions/TutorChangeApplyScreen';
+import { CourseTableScreen } from '../screens/CourseTableScreen';
+import { GradeScreen } from '../screens/GradeScreen';
+import { CourseSelectTurnsScreen } from '../screens/functions/CourseSelectTurnsScreen';
+import { CustomCourseSelectScreen } from '../screens/functions/CustomCourseSelectScreen';
+import { ExemptStudyScreen } from '../screens/functions/ExemptStudyScreen';
+import {
+  CourseSubstituteApplyScreen,
+  ExamDelayApplyScreen,
+  GradeAbandonApplyScreen,
+  RecommendStudentApplyScreen,
+  StdAlterationApplyScreen,
+  TutorIntentApplyScreen,
+} from '../screens/functions/FeatureApplyListScreen';
 
 export interface NativeFunctionProps {
   onClose: () => void;
   onSessionExpired: () => void;
+  /** 原生页内请求打开指定教务页面（WebView 承接），path 为带 /student 前缀的相对路径 */
+  openWebPage?: (title: string, path: string) => void;
 }
 
 /** 已原生化的功能：key = permCode（优先）或 href 匹配 */
@@ -42,6 +57,17 @@ export const NATIVE_FUNCTIONS: Record<string, React.ComponentType<NativeFunction
   'for-std-evaluation-index-result:menu': TutorEvaluationScreen,
   'for-std-degree-apply:menu': DegreeApplyScreen,
   'for-std-tutor-change-apply:menu': TutorChangeApplyScreen,
+  'for-std-course-table:menu': CourseTableScreen,
+  'for-std-course-select:menu': CourseSelectTurnsScreen,
+  'for-std-course-select-apply:menu': CustomCourseSelectScreen,
+  'for-std-exempt-study-apply:menu': ExemptStudyScreen,
+  'for-std-grade-sheet:menu': GradeScreen,
+  'for-std-exam-delay-apply:menu': ExamDelayApplyScreen,
+  'for-std-course-substitute-apply:menu': CourseSubstituteApplyScreen,
+  'for-std-grade-abandon-apply:menu': GradeAbandonApplyScreen,
+  'for-std-std-tutor-apply:menu': TutorIntentApplyScreen,
+  'for-std-std-alteration-apply:menu': StdAlterationApplyScreen,
+  'for-std-recommend-student-apply:menu': RecommendStudentApplyScreen,
 };
 
 /** 按 href 匹配（与 permCode 一致时的兜底） */
@@ -63,6 +89,17 @@ const HREF_TO_CODE: Record<string, string> = {
   '/student/for-std/evaluation-index-result': 'for-std-evaluation-index-result:menu',
   '/student/for-std/degree-apply': 'for-std-degree-apply:menu',
   '/student/for-std/tutor-change-apply': 'for-std-tutor-change-apply:menu',
+  '/student/for-std/course-table': 'for-std-course-table:menu',
+  '/student/for-std/course-select': 'for-std-course-select:menu',
+  '/student/for-std/course-select-apply': 'for-std-course-select-apply:menu',
+  '/student/for-std/exempt-study-apply': 'for-std-exempt-study-apply:menu',
+  '/student/for-std/grade/sheet': 'for-std-grade-sheet:menu',
+  '/student/for-std/exam-delay-apply': 'for-std-exam-delay-apply:menu',
+  '/student/for-std/course-substitute-apply': 'for-std-course-substitute-apply:menu',
+  '/student/for-std/grade-abandon-apply': 'for-std-grade-abandon-apply:menu',
+  '/student/for-std/select/std-tutor-apply': 'for-std-std-tutor-apply:menu',
+  '/student/for-std/std-alteration-apply': 'for-std-std-alteration-apply:menu',
+  '/student/for-std/recommend-student-apply': 'for-std-recommend-student-apply:menu',
 };
 
 export function isNativeFunction(fn: MenuFunction): boolean {

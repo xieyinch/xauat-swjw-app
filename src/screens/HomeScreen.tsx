@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { fetchCourseTable, fetchSemesters, getStudentInfoCached, resolveCurrentSemester } from '../api/data';
+import { fetchBestCourseTable, getStudentInfoCached } from '../api/data';
 import { inWeek } from '../api/parsers';
 import type { CourseLesson, StudentInfo } from '../types';
 import { colors, spacing } from '../theme';
+import { refreshCourseWidget } from '../widget/courseWidget';
 
 interface Props { user:{stdNo:string;name:string}|null; onNavigate:(key:string)=>void; onSessionExpired:()=>void; onLogout:()=>void; }
 const ENTRIES = [
@@ -16,7 +17,7 @@ const ENTRIES = [
 const WEEK_LABELS:Record<number,string>={1:'周一',2:'周二',3:'周三',4:'周四',5:'周五',6:'周六',7:'周日'};
 export function HomeScreen({user,onNavigate,onSessionExpired,onLogout}:Props){
  const[student,setStudent]=useState<StudentInfo|null>(null);const[semesterName,setSemesterName]=useState('');const[todayLessons,setTodayLessons]=useState<CourseLesson[]>([]);const[loading,setLoading]=useState(true);const[error,setError]=useState<string|null>(null);
- const load=useCallback(async()=>{setLoading(true);setError(null);try{const[semesters,info]=await Promise.all([fetchSemesters(),getStudentInfoCached()]);setStudent(info);const current=resolveCurrentSemester(semesters);setSemesterName(current?.nameZh??'');if(current){const table=await fetchCourseTable(current.id);const day=new Date().getDay()===0?7:new Date().getDay();setTodayLessons(table.lessons.filter(l=>l.dayOfWeek===day&&inWeek(l.weekText,Math.max(1,table.currentWeek))));}else setTodayLessons([]);}catch(e){if((e as Error).name==='SessionExpiredError'){onSessionExpired();return;}setError((e as Error).message||'加载失败');}finally{setLoading(false);}},[onSessionExpired]);
+ const load=useCallback(async()=>{setLoading(true);setError(null);try{const[best,info]=await Promise.all([fetchBestCourseTable(),getStudentInfoCached()]);setStudent(info);setSemesterName(best?.semester.nameZh??'');const table=best?.table??null;if(table){refreshCourseWidget(table);const day=new Date().getDay()===0?7:new Date().getDay();setTodayLessons(table.lessons.filter(l=>l.dayOfWeek===day&&inWeek(l.weekText,Math.max(1,table.currentWeek))));}else setTodayLessons([]);}catch(e){if((e as Error).name==='SessionExpiredError'){onSessionExpired();return;}setError((e as Error).message||'加载失败');}finally{setLoading(false);}},[onSessionExpired]);
  useEffect(()=>{load();},[load]);const todayIndex=useMemo(()=>{const d=new Date().getDay();return d===0?7:d;},[]);
  return <ScrollView style={styles.container} contentContainerStyle={styles.content}>
   <View style={styles.studentCard}><View style={styles.avatar}><Text style={styles.avatarText}>{student?.name?.[0]||user?.name?.[0]||'学'}</Text></View><View style={styles.studentInfo}><Text style={styles.studentName}>{student?.name||user?.name||'同学'}</Text><Text style={styles.studentMeta}>{student?.stdNo||user?.stdNo||'学号未知'}{semesterName?` · ${semesterName}`:''}</Text></View><TouchableOpacity style={styles.logoutBtn} onPress={onLogout}><Ionicons name="log-out-outline" size={20} color={colors.textSecondary}/></TouchableOpacity></View>

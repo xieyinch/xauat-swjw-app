@@ -1,9 +1,18 @@
 import { Platform } from 'react-native';
 import { requireNativeModule } from 'expo-modules-core';
 
+export type WidgetCourseSlot = {
+  head: string;
+  sub: string;
+};
+
 export type CourseWidgetPayload = {
   header: string;
-  rows: string[];
+  sub: string;
+  leftTitle: string;
+  rightTitle: string;
+  left: WidgetCourseSlot[];
+  right: WidgetCourseSlot[];
 };
 
 type CourseWidgetNativeModule = {

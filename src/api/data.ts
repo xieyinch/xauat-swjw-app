@@ -141,6 +141,26 @@ export async function fetchCourseTable(semesterId: number): Promise<CourseTableD
   return parseCourseTableJson(await fetchCourseTableRaw(semesterId));
 }
 
+/** 取「当前/最近且有课程」的学期课表：优先当前学期，空窗期自动回退到最近有课学期 */
+export async function fetchBestCourseTable(): Promise<{ semester: Semester; table: CourseTableData } | null> {
+  const semesters = await fetchSemesters();
+  const preferred = resolveCurrentSemester(semesters);
+  if (!preferred) return null;
+  let firstData: { semester: Semester; table: CourseTableData } | null = null;
+  for (const s of rankSemesterCandidates(semesters, preferred.id)) {
+    try {
+      const table = await fetchCourseTable(s.id);
+      const result = { semester: s, table };
+      if (table.lessons.length > 0) return result;
+      firstData = firstData ?? result;
+    } catch (e) {
+      if ((e as Error).name === 'SessionExpiredError') throw e;
+      // 单个学期读取失败则跳过，继续探测更近的其它学期
+    }
+  }
+  return firstData;
+}
+
 export async function fetchGrades(studentId: number, semesterId: number): Promise<GradeData> {
   const raw = guardSession(
     await webFetch(`/student/for-std/grade/sheet/info/${studentId}?semester=${semesterId}`),

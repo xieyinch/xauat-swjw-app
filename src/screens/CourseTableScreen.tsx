@@ -77,9 +77,14 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
     setDebugVisible(true);
   }, [semesterId]);
 
+  const defaultSemesterRef = useRef<number | null>(null);
+
   const adoptTable = useCallback((data: CourseTableData) => {
     setTable(data);
-    refreshCourseWidget(data);
+    // 仅在当前/自动选中的默认学期时同步桌面组件，浏览历史学期不覆盖
+    if (data.semesterId === defaultSemesterRef.current) {
+      refreshCourseWidget(data);
+    }
     const total = Math.max(1, data.totalWeeks || 1);
     const cw = Math.min(Math.max(1, data.currentWeek || 1), total);
     setWeek((w) => {
@@ -113,6 +118,7 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
           // 单个学期读取失败则跳过，继续探测更近的其它学期
         }
       }
+      defaultSemesterRef.current = chosen.id;
       setSemesterId(chosen.id);
     } catch (e) {
       if ((e as Error).name === 'SessionExpiredError') {

@@ -3,7 +3,7 @@
     <receiver
       android:name="com.xauat.swjw.coursewidget.CourseWidgetProvider"
       android:exported="false"
-      android:label="本周课表">
+      android:label="今日课表">
       <intent-filter>
         <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
       </intent-filter>

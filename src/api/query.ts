@@ -202,27 +202,43 @@ export async function fetchRoomFree(query: RoomFreeQuery): Promise<RoomFreeItem[
 
 // ---------- 02.04 全校开课查询 ----------
 
+export interface LessonSearchPage {
+  /** 当前页号（从 1 起） */
+  page: number;
+  /** 每页条数 */
+  rowsPerPage: number;
+  /** 总条数 */
+  totalRows: number;
+  /** 总页数 */
+  totalPages: number;
+}
+
 export interface LessonSearchResult {
-  semesters: Array<{ id: number; nameZh: string }>;
   items: LessonSearchItem[];
+  page: LessonSearchPage;
 }
 
 export async function fetchLessonSearch(
   semesterId: number,
   studentId: number,
   keyword?: string,
-): Promise<LessonSearchItem[]> {
+  page = 1,
+): Promise<LessonSearchResult> {
   const params = new URLSearchParams();
   if (keyword) params.set('query', keyword);
+  params.set('queryPage__', `${page},20`);
   const raw = guardSession(
     await webFetch(
-      `/student/for-std/lesson-search/semester/${semesterId}/search/${studentId}${
-        params.toString() ? `?${params.toString()}` : ''
-      }`,
+      `/student/for-std/lesson-search/semester/${semesterId}/search/${studentId}?${params.toString()}`,
     ),
   );
-  const d = parseJson<{ data?: Array<Record<string, unknown>> }>(raw);
-  return (d.data ?? []).map((l) => {
+  const d = parseJson<{
+    data?: Array<Record<string, unknown>>;
+    _page_?: Record<string, number>;
+  }>(raw);
+  const pageInfo = (d._page_ ?? {}) as Record<string, number>;
+  return {
+    items: (d.data ?? []).map((l) => {
     const course = (l.course ?? {}) as Record<string, unknown>;
     const nameZh = (course.nameZh as string) ?? (l.lessonNameZh as string) ?? '';
     const code = (course.code as string) ?? (l.code as string) ?? '';
@@ -265,7 +281,14 @@ export async function fetchLessonSearch(
       placeText,
       campus,
     };
-  });
+    }),
+    page: {
+      page: pageInfo.currentPage ?? page,
+      rowsPerPage: pageInfo.rowsPerPage ?? 20,
+      totalRows: pageInfo.totalRows ?? 0,
+      totalPages: pageInfo.totalPages ?? 1,
+    },
+  };
 }
 
 // ---------- 02.20 常用文件下载 ----------

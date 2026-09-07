@@ -176,7 +176,10 @@ export function RoomFreeScreen({ onClose, onSessionExpired }: Props) {
                   {[item.building, item.campus, item.roomType].filter(Boolean).join(' · ')}
                 </Text>
               </View>
-              {item.capacity != null ? <Text style={styles.capacity}>{item.capacity}人</Text> : null}
+              <View style={styles.freeBadge}>
+                <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                <Text style={styles.freeBadgeText}>空闲</Text>
+              </View>
             </View>
           )}
         />
@@ -230,5 +233,14 @@ const styles = StyleSheet.create({
   roomMain: { flex: 1, marginRight: spacing.md },
   roomName: { fontSize: 15, fontWeight: '600', color: colors.text },
   roomMeta: { fontSize: 12, color: colors.textSecondary, marginTop: 3 },
-  capacity: { fontSize: 13, color: colors.primary, fontWeight: '600' },
+  freeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(18,183,106,0.12)',
+  },
+  freeBadgeText: { fontSize: 12, color: colors.success, fontWeight: '600' },
 });

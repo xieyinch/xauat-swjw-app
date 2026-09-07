@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { FunctionShell } from '../../components/FunctionShell';
 import { ListContainer } from '../../components/ListContainer';
-import { fetchLessonSearch } from '../../api/query';
+import { fetchLessonSearch, type LessonSearchPage } from '../../api/query';
 import { fetchSemesters, getStudentInfoCached, resolveCurrentSemester } from '../../api/data';
 import type { LessonSearchItem, Semester } from '../../types';
 import { colors, spacing } from '../../theme';
@@ -19,10 +19,13 @@ export function LessonSearchScreen({ onClose, onSessionExpired }: Props) {
   const [searchText, setSearchText] = useState('');
   const [keyword, setKeyword] = useState('');
   const [items, setItems] = useState<LessonSearchItem[]>([]);
+  const [pageInfo, setPageInfo] = useState<LessonSearchPage | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const studentIdRef = useRef(0);
+  const pageRef = useRef(1);
 
   // 输入防抖：停止输入 350ms 后自动发起查询
   useEffect(() => {
@@ -53,9 +56,11 @@ export function LessonSearchScreen({ onClose, onSessionExpired }: Props) {
       if (refresh) setRefreshing(true);
       else setLoading(true);
       setError(null);
+      pageRef.current = 1;
       try {
-        const data = await fetchLessonSearch(semesterId, studentIdRef.current, keyword || undefined);
-        setItems(data);
+        const data = await fetchLessonSearch(semesterId, studentIdRef.current, keyword || undefined, 1);
+        setItems(data.items);
+        setPageInfo(data.page);
       } catch (e) {
         if ((e as Error).name === 'SessionExpiredError') {
           onSessionExpired();
@@ -69,6 +74,27 @@ export function LessonSearchScreen({ onClose, onSessionExpired }: Props) {
     },
     [semesterId, keyword, onSessionExpired],
   );
+
+  const loadMore = useCallback(async () => {
+    if (semesterId == null || loadingMore) return;
+    const next = pageRef.current + 1;
+    if (pageInfo != null && next > pageInfo.totalPages) return;
+    setLoadingMore(true);
+    try {
+      const data = await fetchLessonSearch(semesterId, studentIdRef.current, keyword || undefined, next);
+      pageRef.current = next;
+      setItems((prev) => [...prev, ...data.items]);
+      setPageInfo(data.page);
+    } catch (e) {
+      if ((e as Error).name === 'SessionExpiredError') {
+        onSessionExpired();
+        return;
+      }
+      setError((e as Error).message || '加载更多失败');
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [semesterId, keyword, loadingMore, pageInfo, onSessionExpired]);
 
   useEffect(() => {
     loadSemesters();
@@ -105,6 +131,11 @@ export function LessonSearchScreen({ onClose, onSessionExpired }: Props) {
             autoCorrect={false}
           />
         </View>
+        {pageInfo != null && items.length > 0 ? (
+          <Text style={styles.countHint}>
+            已显示 {items.length} 条，共 {pageInfo.totalRows} 条开课记录
+          </Text>
+        ) : null}
       </View>
       <ListContainer loading={loading} error={error} onRetry={() => load()} emptyText="未找到开课记录">
         <FlatList
@@ -127,6 +158,19 @@ export function LessonSearchScreen({ onClose, onSessionExpired }: Props) {
               ) : null}
             </View>
           )}
+          ListFooterComponent={
+            pageInfo != null && pageRef.current < pageInfo.totalPages ? (
+              <TouchableOpacity
+                style={[styles.loadMoreBtn, loadingMore && styles.loadMoreDisabled]}
+                onPress={loadMore}
+                disabled={loadingMore}
+              >
+                <Text style={styles.loadMoreText}>
+                  {loadingMore ? '加载中…' : `加载更多（${pageInfo.totalRows - items.length} 条）`}
+                </Text>
+              </TouchableOpacity>
+            ) : null
+          }
         />
       </ListContainer>
     </FunctionShell>
@@ -150,6 +194,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   searchInput: { flex: 1, fontSize: 14, color: colors.text, padding: 0 },
+  countHint: { fontSize: 12, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.xs },
   card: {
     marginHorizontal: spacing.lg,
     marginTop: spacing.md,
@@ -163,4 +208,15 @@ const styles = StyleSheet.create({
   credits: { fontSize: 13, color: colors.primary, fontWeight: '600' },
   meta: { fontSize: 12, color: colors.textSecondary, marginTop: 3 },
   schedule: { fontSize: 12, color: colors.text, marginTop: 6, lineHeight: 18 },
+  loadMoreBtn: {
+    marginHorizontal: spacing.lg,
+    marginVertical: spacing.md,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+  loadMoreDisabled: { opacity: 0.6 },
+  loadMoreText: { fontSize: 13, color: colors.primary, fontWeight: '600' },
 });

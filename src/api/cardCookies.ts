@@ -51,9 +51,14 @@ function pickStore(): {
  * 注意：CookieManager 的 get 在 Android 上会返回 HttpOnly Cookie，因此本方案适用于原生 APK 构建。
  */
 
-/** 捕获当前域下已登录的 Cookie 并保存（登录成功后调用） */
+/** 捕获身份码（一卡通支付平台）已登录会话 Cookie 并持久化。
+ * 在登录成功、页面跳转后的导航回调里调用。传入固定 CARD_PAY_URL 域，
+ * 配合延迟等待，确保 WebView 原生 Set-Cookie 处理完成后再读取。 */
 export async function captureCardCookies(url: string): Promise<void> {
   try {
+    // 等一拍，让原生 WebView 处理完 Set-Cookie 响应头再读取，避免拿到旧的
+    await new Promise((r) => setTimeout(r, 1200));
+    // 用固定身份码域名捕获（Cookie 挂在 ydfwpt.xauat.edu.cn 下）
     const cookies = await CookieManager.get(url, false);
     const values = Object.values(cookies).filter((c) => c && c.value);
     if (!values.length) return;
@@ -64,7 +69,7 @@ export async function captureCardCookies(url: string): Promise<void> {
   }
 }
 
-/** 恢复已保存的身份码 Cookie（WebView 加载前调用） */
+/** 恢复已保存的身份码 Cookie（身份码 WebView 首次加载前调用） */
 export async function restoreCardCookies(url: string): Promise<void> {
   try {
     const store = pickStore();

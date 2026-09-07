@@ -13,17 +13,24 @@ interface Props {
   active?: boolean;
   /** Android 系统返回键直接关闭页面（不沿 H5 历史后退），避免误退回登录态 */
   systemBackCloses?: boolean;
+  /** 页面导航变化回调（用于身份码等需要持久化会话 Cookie 的第三方域） */
+  onNavigate?: (nav: WebViewNavigation, url: string) => void;
 }
 
-export function LibraryScreen({ title, uri, onClose, active = true, systemBackCloses = false }: Props) {
+export function LibraryScreen({ title, uri, onClose, active = true, systemBackCloses = false, onNavigate }: Props) {
   const webViewRef = useRef<PortalWebViewHandle>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const canGoBackRef = useRef(false);
+  const onNavigateRef = useRef(onNavigate);
+  useEffect(() => {
+    onNavigateRef.current = onNavigate;
+  }, [onNavigate]);
 
   const handleNav = useCallback((nav: WebViewNavigation) => {
     canGoBackRef.current = nav.canGoBack;
     setCanGoBack(nav.canGoBack);
-  }, []);
+    onNavigateRef.current?.(nav, uri);
+  }, [uri]);
 
   const handleBack = useCallback(() => {
     if (systemBackCloses) {

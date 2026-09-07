@@ -116,14 +116,20 @@ export interface RoomFreeQuery {
 /** 全校开课课程条目（页面 02.04） */
 export interface LessonSearchItem {
   id: number;
+  /** 课程代码 */
   code: string;
+  /** 课程名称（course.nameZh） */
   nameZh: string;
-  /** 教学班 */
+  /** 教学班名称（nameZh） */
   classes: string;
   credits?: number;
   teachers: string[];
+  /** 排课明细（dateTimePlaceText） */
   scheduleText: string;
+  /** 排课明细（dateTimePlaceText，兼容） */
   placeText: string;
+  /** 开课校区（campus.nameZh） */
+  campus?: string;
 }
 
 /** 常用文件条目（页面 02.20） */

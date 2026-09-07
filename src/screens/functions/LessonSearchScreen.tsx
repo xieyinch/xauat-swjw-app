@@ -114,16 +114,16 @@ export function LessonSearchScreen({ onClose, onSessionExpired }: Props) {
           renderItem={({ item }) => (
             <View style={styles.card}>
               <View style={styles.cardHeader}>
-                <Text style={styles.courseName} numberOfLines={1}>{item.nameZh}</Text>
+                <Text style={styles.courseName} numberOfLines={2}>{item.nameZh}</Text>
                 <Text style={styles.credits}>{item.credits != null ? `${item.credits} 学分` : ''}</Text>
               </View>
-              <Text style={styles.meta}>{item.code}</Text>
+              <Text style={styles.meta}>
+                {[item.code, item.campus].filter(Boolean).join(' · ')}
+              </Text>
               {item.classes ? <Text style={styles.meta}>教学班：{item.classes}</Text> : null}
               {item.teachers.length ? <Text style={styles.meta}>教师：{item.teachers.join('、')}</Text> : null}
-              {(item.placeText || item.scheduleText) ? (
-                <Text style={styles.schedule} numberOfLines={6}>
-                  {item.placeText || item.scheduleText}
-                </Text>
+              {item.scheduleText ? (
+                <Text style={styles.schedule} numberOfLines={6}>{item.scheduleText}</Text>
               ) : null}
             </View>
           )}

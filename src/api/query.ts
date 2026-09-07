@@ -223,20 +223,37 @@ export async function fetchLessonSearch(
   );
   const d = parseJson<{ data?: Array<Record<string, unknown>> }>(raw);
   return (d.data ?? []).map((l) => {
-    const nameZh = (l.nameZh as string) ?? (l.lessonNameZh as string) ?? '';
-    const code = (l.code as string) ?? '';
+    const course = (l.course ?? {}) as Record<string, unknown>;
+    const nameZh = (course.nameZh as string) ?? (l.lessonNameZh as string) ?? '';
+    const code = (course.code as string) ?? (l.code as string) ?? '';
     const credits =
       (l.requiredPeriodInfo as Record<string, unknown> | undefined)?.total != null
         ? Number((l.requiredPeriodInfo as Record<string, unknown>).total)
-        : (l.credits as number);
+        : (course.periodInfo as Record<string, unknown> | undefined)?.total != null
+          ? Number((course.periodInfo as Record<string, unknown>).total)
+          : (l.credits as number);
     const scheduleText =
-      ((l.scheduleText as Record<string, unknown> | undefined)?.dateTimeText as Record<string, string> | undefined)
-        ?.textZh ?? '';
-    const placeText =
       ((l.scheduleText as Record<string, unknown> | undefined)?.dateTimePlaceText as Record<string, string> | undefined)
         ?.textZh ?? '';
-    const teachers = Array.isArray(l.teachers) ? (l.teachers as string[]) : [];
-    const classes = Array.isArray(l.classes) ? (l.classes as string[]).join(';') : (l.classNameZh as string) ?? '';
+    const placeText =
+      ((l.scheduleText as Record<string, unknown> | undefined)?.roomSeatText as Record<string, string> | undefined)
+        ?.textZh ?? '';
+    const teachers = Array.isArray(l.teacherAssignmentList)
+      ? (l.teacherAssignmentList as Array<{ person?: Record<string, string> }>)
+          .map((t) => t.person?.nameZh ?? '')
+          .filter(Boolean)
+      : typeof l.teacherAssignmentStr === 'string'
+        ? String(l.teacherAssignmentStr)
+            .replace(/\(\d+\)/g, '')
+            .split(/[,，]/)
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [];
+    const classes = (l.nameZh as string) ?? '';
+    const campus =
+      ((l.campus as Record<string, string> | undefined)?.nameZh ?? '') ||
+      ((l.timeTableLayout as Record<string, string> | undefined)?.nameZh ?? '') ||
+      undefined;
     return {
       id: l.id as number,
       code,
@@ -246,6 +263,7 @@ export async function fetchLessonSearch(
       teachers,
       scheduleText,
       placeText,
+      campus,
     };
   });
 }

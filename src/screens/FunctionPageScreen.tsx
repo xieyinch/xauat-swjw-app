@@ -1,3 +1,5 @@
+import { useThemeColors, type Palette } from '../appearance';
+import { MotionTouchableOpacity } from '../components/MotionTouchableOpacity';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -73,29 +75,21 @@ interface Props {
   onSessionExpired: () => void;
 }
 
-interface OverridePage {
-  title: string;
-  path: string;
-}
-
 export function FunctionPageScreen({ fn, onClose, onSessionExpired }: Props) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const webViewRef = useRef<PortalWebViewHandle>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
   const [naturalMode, setNaturalMode] = useState(false);
-  const [overridePage, setOverridePage] = useState<OverridePage | null>(null);
   const canGoBackRef = useRef(false);
   const expiredRef = useRef(false);
 
   // 已原生化的功能直接渲染原生组件，跳过 WebView
   const Native = nativeComponentFor(fn);
 
-  const uri = overridePage
-    ? `${SITE.swjw}${overridePage.path}`
-    : fn.href
-      ? `${SITE.swjw}${fn.href}`
-      : SITE.portal;
-  const title = overridePage?.title ?? fn.title;
+  const uri = fn.href ? `${SITE.swjw}${fn.href}` : SITE.portal;
 
   const toggleFitMode = useCallback(() => {
     setNaturalMode((prev) => {
@@ -122,14 +116,14 @@ export function FunctionPageScreen({ fn, onClose, onSessionExpired }: Props) {
 
   const handleBack = useCallback(() => {
     // 原生页无 WebView 历史，返回键直接关闭页面回到上级菜单
-    if (Native && !overridePage) {
+    if (Native) {
       onClose();
       return true;
     }
     if (canGoBackRef.current) webViewRef.current?.goBack();
     else onClose();
     return true;
-  }, [Native, overridePage, onClose]);
+  }, [Native, onClose]);
 
   // 无论原生页还是 WebView 页都必须注册返回键，否则硬件返回会直接退出 App
   useEffect(() => {
@@ -138,20 +132,19 @@ export function FunctionPageScreen({ fn, onClose, onSessionExpired }: Props) {
     return () => subscription.remove();
   }, [handleBack]);
 
-  if (Native && !overridePage) {
-    const openWebPage = (pageTitle: string, path: string) => setOverridePage({ title: pageTitle, path });
-    return <Native onClose={onClose} onSessionExpired={onSessionExpired} openWebPage={openWebPage} />;
+  if (Native) {
+    return <Native onClose={onClose} onSessionExpired={onSessionExpired} />;
   }
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onClose} style={styles.btn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <MotionTouchableOpacity onPress={onClose} style={styles.btn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Ionicons name="close" size={22} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
+        </MotionTouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>{fn.title}</Text>
         <View style={styles.actions}>
-          <TouchableOpacity
+          <MotionTouchableOpacity
             onPress={toggleFitMode}
             style={styles.btn}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -161,30 +154,30 @@ export function FunctionPageScreen({ fn, onClose, onSessionExpired }: Props) {
               size={20}
               color={naturalMode ? colors.primary : colors.text}
             />
-          </TouchableOpacity>
-          <TouchableOpacity
+          </MotionTouchableOpacity>
+          <MotionTouchableOpacity
             onPress={() => webViewRef.current?.goBack()}
             disabled={!canGoBack}
             style={styles.btn}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="arrow-back" size={20} color={canGoBack ? colors.text : colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity
+          </MotionTouchableOpacity>
+          <MotionTouchableOpacity
             onPress={() => webViewRef.current?.goForward()}
             disabled={!canGoForward}
             style={styles.btn}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="arrow-forward" size={20} color={canGoForward ? colors.text : colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity
+          </MotionTouchableOpacity>
+          <MotionTouchableOpacity
             onPress={() => webViewRef.current?.reload()}
             style={styles.btn}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="refresh-outline" size={20} color={colors.text} />
-          </TouchableOpacity>
+          </MotionTouchableOpacity>
         </View>
       </View>
       <PortalWebView
@@ -198,7 +191,7 @@ export function FunctionPageScreen({ fn, onClose, onSessionExpired }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',

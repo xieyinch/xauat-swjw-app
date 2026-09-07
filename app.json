@@ -4,7 +4,7 @@
     "slug": "xauat-swjw-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/xauat-gate-icon-v2.png",
     "userInterfaceStyle": "light",
     "scheme": "xauatswjw",
     "ios": {
@@ -14,8 +14,8 @@
     "android": {
       "package": "com.xauat.swjw",
       "adaptiveIcon": {
-        "backgroundColor": "#F5F4EF",
-        "foregroundImage": "./assets/android-icon-foreground.png"
+        "backgroundColor": "#C96008",
+        "foregroundImage": "./assets/xauat-gate-icon-v2.png"
       },
       "predictiveBackGestureEnabled": false,
       "queries": [
@@ -38,7 +38,9 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      ["expo-image-picker", { "cameraPermission": false, "microphonePermission": false }],
+      "expo-notifications"
     ]
   }
 }

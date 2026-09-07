@@ -1,3 +1,4 @@
+import { useThemeColors, type Palette } from '../appearance';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colors, spacing } from '../theme';
@@ -10,6 +11,9 @@ interface InfoRowProps {
 
 /** 单行键值信息（详情页用） */
 export function InfoRow({ label, value, last }: InfoRowProps) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   return (
     <View style={[styles.row, last && styles.lastRow]}>
       <Text style={styles.label}>{label}</Text>
@@ -18,7 +22,7 @@ export function InfoRow({ label, value, last }: InfoRowProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -38,6 +42,9 @@ interface SectionCardProps {
 
 /** 分组卡片容器 */
 export function SectionCard({ title, children }: SectionCardProps) {
+  const colors = useThemeColors();
+  const cardStyles = make_cardStyles(colors);
+
   return (
     <View style={cardStyles.card}>
       {title ? <Text style={cardStyles.cardTitle}>{title}</Text> : null}
@@ -46,7 +53,7 @@ export function SectionCard({ title, children }: SectionCardProps) {
   );
 }
 
-const cardStyles = StyleSheet.create({
+const make_cardStyles = (colors: Palette) => StyleSheet.create({
   card: {
     marginHorizontal: spacing.lg,
     marginTop: spacing.md,

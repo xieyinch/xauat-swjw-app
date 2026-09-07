@@ -1,3 +1,4 @@
+import { useThemeColors, type Palette } from '../appearance';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colors, spacing } from '../theme';
@@ -10,6 +11,9 @@ interface KeyValueCardProps {
 
 /** 键值对卡片：每行三列（标签-值-标签-值） */
 export function KeyValueCard({ title, entries }: KeyValueCardProps) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const rows: StudentInfoEntry[][] = [];
   for (let i = 0; i < entries.length; i += 2) {
     rows.push(entries.slice(i, i + 2));
@@ -31,7 +35,7 @@ export function KeyValueCard({ title, entries }: KeyValueCardProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   card: {
     marginHorizontal: spacing.lg,
     marginTop: spacing.md,

@@ -6,6 +6,7 @@ export interface Semester {
 }
 
 export interface CourseLesson {
+  campus?: '草堂' | '雁塔';
   id: number;
   nameZh: string;
   code: string;
@@ -25,6 +26,7 @@ export interface CourseLesson {
 }
 
 export interface CourseTableData {
+  semester?: Semester & { weekStartOnSunday?: boolean };
   semesterId: number;
   /** 总周数 */
   totalWeeks: number;

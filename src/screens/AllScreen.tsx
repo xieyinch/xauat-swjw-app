@@ -1,3 +1,6 @@
+import { useThemeColors, type Palette } from '../appearance';
+import { GlassSurface } from '../components/Glass';
+import { MotionTouchableOpacity } from '../components/MotionTouchableOpacity';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -22,14 +25,18 @@ interface Props {
   onSessionExpired: () => void;
 }
 
-const QUICK_ENTRIES = [
-  { key: 'schedule', label: '我的课表', icon: 'calendar-outline', color: '#0A66C2' },
-  { key: 'grade', label: '成绩信息', icon: 'school-outline', color: '#12B76A' },
-  { key: 'exam', label: '考试信息', icon: 'time-outline', color: '#F59E0B' },
-  { key: 'notices', label: '通知公告', icon: 'notifications-outline', color: '#EF4444' },
+const make_QUICK_ENTRIES = (colors: Palette) => [
+  { key: 'schedule', label: '我的课表', icon: 'calendar-outline', color: colors.primary },
+  { key: 'grade', label: '成绩信息', icon: 'school-outline', color: colors.gold },
+  { key: 'exam', label: '考试信息', icon: 'time-outline', color: colors.terracotta },
+  { key: 'notices', label: '通知公告', icon: 'notifications-outline', color: colors.primaryDark },
 ];
 
 export function AllScreen({ onOpenFunction, onOpenNotices, onNavigateTab, onSessionExpired }: Props) {
+  const colors = useThemeColors();
+  const QUICK_ENTRIES = make_QUICK_ENTRIES(colors);
+  const styles = make_styles(colors);
+
   const [categories, setCategories] = useState<MenuCategory[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -84,7 +91,7 @@ export function AllScreen({ onOpenFunction, onOpenNotices, onNavigateTab, onSess
     ({ item }: { item: MenuCategory }) => (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Ionicons name={categoryMeta(item.title).icon as keyof typeof Ionicons.glyphMap} size={18} color={categoryMeta(item.title).color} />
+          <Ionicons name={categoryMeta(item.title).icon as keyof typeof Ionicons.glyphMap} size={18} color={colors.primary} />
           <Text style={styles.sectionTitle}>{item.title}</Text>
           <Text style={styles.sectionCount}>{item.functions.length}</Text>
         </View>
@@ -92,17 +99,17 @@ export function AllScreen({ onOpenFunction, onOpenNotices, onNavigateTab, onSess
           {item.functions.map((fn) => {
             const meta = metaFor(fn);
             return (
-              <TouchableOpacity
+              <MotionTouchableOpacity
                 key={fn.id}
                 style={styles.fnCard}
                 activeOpacity={0.7}
                 onPress={() => onOpenFunction(fn)}
               >
-                <View style={[styles.fnIcon, { backgroundColor: `${meta.color}1A` }]}>
-                  <Ionicons name={meta.icon as keyof typeof Ionicons.glyphMap} size={24} color={meta.color} />
+                <View style={[styles.fnIcon, { backgroundColor: colors.primarySoft }]}>
+                  <Ionicons name={meta.icon as keyof typeof Ionicons.glyphMap} size={24} color={colors.primary} />
                 </View>
                 <Text style={styles.fnLabel} numberOfLines={2}>{fn.title}</Text>
-              </TouchableOpacity>
+              </MotionTouchableOpacity>
             );
           })}
         </View>
@@ -113,7 +120,7 @@ export function AllScreen({ onOpenFunction, onOpenNotices, onNavigateTab, onSess
 
   return (
     <View style={styles.container}>
-      <View style={styles.searchBar}>
+      <GlassSurface style={styles.searchBar}>
         <Ionicons name="search" size={18} color={colors.textSecondary} />
         <TextInput
           style={styles.searchInput}
@@ -124,11 +131,11 @@ export function AllScreen({ onOpenFunction, onOpenNotices, onNavigateTab, onSess
           autoCorrect={false}
         />
         {keyword ? (
-          <TouchableOpacity onPress={() => setKeyword('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <MotionTouchableOpacity onPress={() => setKeyword('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
-          </TouchableOpacity>
+          </MotionTouchableOpacity>
         ) : null}
-      </View>
+      </GlassSurface>
 
       {loading ? (
         <View style={styles.center}>
@@ -138,9 +145,9 @@ export function AllScreen({ onOpenFunction, onOpenNotices, onNavigateTab, onSess
         <View style={styles.center}>
           <Ionicons name="cloud-offline-outline" size={40} color={colors.textSecondary} />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => load()}>
+          <MotionTouchableOpacity style={styles.retryBtn} onPress={() => load()}>
             <Text style={styles.retryText}>重试</Text>
-          </TouchableOpacity>
+          </MotionTouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -158,12 +165,12 @@ export function AllScreen({ onOpenFunction, onOpenNotices, onNavigateTab, onSess
                 </View>
                 <View style={styles.quickGrid}>
                   {QUICK_ENTRIES.map((q) => (
-                    <TouchableOpacity key={q.key} style={styles.quickCard} activeOpacity={0.7} onPress={() => handleQuick(q.key)}>
+                    <MotionTouchableOpacity key={q.key} style={styles.quickCard} activeOpacity={0.7} onPress={() => handleQuick(q.key)}>
                       <View style={[styles.fnIcon, { backgroundColor: `${q.color}1A` }]}>
                         <Ionicons name={q.icon as keyof typeof Ionicons.glyphMap} size={24} color={q.color} />
                       </View>
                       <Text style={styles.fnLabel} numberOfLines={2}>{q.label}</Text>
-                    </TouchableOpacity>
+                    </MotionTouchableOpacity>
                   ))}
                 </View>
               </View>
@@ -186,8 +193,8 @@ export function AllScreen({ onOpenFunction, onOpenNotices, onNavigateTab, onSess
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+const make_styles = (colors: Palette) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: 'transparent' },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -208,8 +215,8 @@ const styles = StyleSheet.create({
   sectionCount: { fontSize: 12, color: colors.textSecondary },
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: spacing.lg, marginTop: spacing.md, gap: spacing.md },
   grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: spacing.lg, marginTop: spacing.md, gap: spacing.md },
-  fnCard: { width: '31%', flexGrow: 1, alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
-  quickCard: { width: '23%', flexGrow: 1, alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
+  fnCard: { backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.primaryBorder, paddingVertical: 14, width: '47%', flexGrow: 1, alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
+  quickCard: { backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.primaryBorder, paddingVertical: 12, width: '47%', flexGrow: 1, alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
   fnIcon: { width: 50, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   fnLabel: { fontSize: 12, color: colors.text, textAlign: 'center' },
   searchResult: { fontSize: 12, color: colors.textSecondary, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },

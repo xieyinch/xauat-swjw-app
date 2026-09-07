@@ -1,3 +1,5 @@
+import { useThemeColors, type Palette } from '../appearance';
+import { MotionTouchableOpacity } from '../components/MotionTouchableOpacity';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
@@ -31,6 +33,9 @@ export function LoginScreen({
   submitting,
   error,
 }: LoginScreenProps) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const [showPwd, setShowPwd] = useState(false);
 
   return (
@@ -72,13 +77,13 @@ export function LoginScreen({
             secureTextEntry={!showPwd}
             editable={!submitting}
           />
-          <TouchableOpacity onPress={() => setShowPwd((v) => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <MotionTouchableOpacity onPress={() => setShowPwd((v) => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons
               name={showPwd ? 'eye-off-outline' : 'eye-outline'}
               size={20}
               color={colors.textSecondary}
             />
-          </TouchableOpacity>
+          </MotionTouchableOpacity>
         </View>
 
         {error ? (
@@ -88,7 +93,7 @@ export function LoginScreen({
           </View>
         ) : null}
 
-        <TouchableOpacity
+        <MotionTouchableOpacity
           style={[styles.button, (submitting || !username || !password) && styles.buttonDisabled]}
           onPress={onSubmit}
           disabled={submitting || !username || !password}
@@ -98,7 +103,7 @@ export function LoginScreen({
           ) : (
             <Text style={styles.buttonText}>登录</Text>
           )}
-        </TouchableOpacity>
+        </MotionTouchableOpacity>
 
         <Text style={styles.tip}>
           使用学校统一身份认证账号登录。登录成功后账号密码会保存在设备安全存储区，用于会话过期后自动重新登录；退出登录会清除。
@@ -108,10 +113,10 @@ export function LoginScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
   },
   hero: {
     alignItems: 'center',
@@ -148,7 +153,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: 12,
+    borderRadius: 22,
     paddingHorizontal: spacing.md,
     gap: spacing.sm,
     borderWidth: 1,

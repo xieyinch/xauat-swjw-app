@@ -1,3 +1,5 @@
+import { useThemeColors, type Palette } from '../../appearance';
+import { MotionTouchableOpacity } from '../../components/MotionTouchableOpacity';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
@@ -56,6 +58,9 @@ function lastWeekOf(weekText: string): number {
 }
 
 export function AdminClassTableScreen({ onClose, onSessionExpired }: Props) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const { width: winW } = useWindowDimensions();
   const colW = Math.max((winW - TIME_COL) / 7, 54);
 
@@ -199,32 +204,32 @@ export function AdminClassTableScreen({ onClose, onSessionExpired }: Props) {
         {semesters.slice(0, 8).map((s) => {
           const active = s.id === semesterId;
           return (
-            <TouchableOpacity
+            <MotionTouchableOpacity
               key={s.id}
               style={[styles.chip, active && styles.chipActive]}
               onPress={() => setSemesterId(s.id)}
             >
               <Text style={[styles.chipText, active && styles.chipTextActive]}>{s.nameZh}</Text>
-            </TouchableOpacity>
+            </MotionTouchableOpacity>
           );
         })}
       </ScrollView>
 
       <View style={styles.weekBar}>
-        <TouchableOpacity style={styles.weekBtn} onPress={() => setWeek((w) => Math.max(1, w - 1))} disabled={week <= 1}>
+        <MotionTouchableOpacity style={styles.weekBtn} onPress={() => setWeek((w) => Math.max(1, w - 1))} disabled={week <= 1}>
           <Ionicons name="chevron-back" size={20} color={week <= 1 ? colors.border : colors.primary} />
-        </TouchableOpacity>
+        </MotionTouchableOpacity>
         <View style={styles.weekInfo}>
           <Text style={styles.weekText}>第 {week} 周</Text>
           {data?.className ? <Text style={styles.weekTotal}>{data.className}</Text> : null}
         </View>
-        <TouchableOpacity
+        <MotionTouchableOpacity
           style={styles.weekBtn}
           onPress={() => setWeek((w) => Math.min(totalWeeks, w + 1))}
           disabled={week >= totalWeeks}
         >
           <Ionicons name="chevron-forward" size={20} color={week >= totalWeeks ? colors.border : colors.primary} />
-        </TouchableOpacity>
+        </MotionTouchableOpacity>
       </View>
 
       <ListContainer loading={loading} error={error} onRetry={() => load()} emptyText="暂无班级课表">
@@ -299,7 +304,7 @@ export function AdminClassTableScreen({ onClose, onSessionExpired }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   semesterBar: { flexGrow: 0, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   chip: {
     paddingHorizontal: spacing.md,

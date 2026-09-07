@@ -1,3 +1,6 @@
+import { useThemeColors, type Palette } from '../appearance';
+import { GlassSurface } from '../components/Glass';
+import { MotionTouchableOpacity } from '../components/MotionTouchableOpacity';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -10,6 +13,9 @@ interface Props {
 }
 
 export function ExamScreen({ onSessionExpired }: Props) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const [exams, setExams] = React.useState<ExamItem[] | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -56,9 +62,9 @@ export function ExamScreen({ onSessionExpired }: Props) {
         <View style={styles.center}>
           <Ionicons name="cloud-offline-outline" size={40} color={colors.textSecondary} />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => load()}>
+          <MotionTouchableOpacity style={styles.retryBtn} onPress={() => load()}>
             <Text style={styles.retryText}>重试</Text>
-          </TouchableOpacity>
+          </MotionTouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -69,7 +75,7 @@ export function ExamScreen({ onSessionExpired }: Props) {
             exams && exams.length ? <Text style={styles.count}>共 {exams.length} 场考试</Text> : null
           }
           renderItem={({ item }) => (
-            <View style={styles.examCard}>
+            <GlassSurface style={styles.examCard}>
               <View style={styles.examTime}>
                 <Text style={styles.dateText}>{item.dateTime.split(' ')[0] ?? item.dateTime}</Text>
                 <Text style={styles.timeText}>{item.dateTime.split(' ')[1] ?? ''}</Text>
@@ -83,7 +89,7 @@ export function ExamScreen({ onSessionExpired }: Props) {
                 </Text>
                 {item.seatNo ? <Text style={styles.meta}>座位号：{item.seatNo}</Text> : null}
               </View>
-            </View>
+            </GlassSurface>
           )}
           ListEmptyComponent={
             <View style={styles.center}>
@@ -97,10 +103,11 @@ export function ExamScreen({ onSessionExpired }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+const make_styles = (colors: Palette) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: 'transparent' },
   count: { fontSize: 13, color: colors.textSecondary, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   examCard: {
+    marginHorizontal: 16, marginBottom: 12, borderRadius: 22,
     flexDirection: 'row',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,

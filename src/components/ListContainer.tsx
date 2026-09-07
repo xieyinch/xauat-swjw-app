@@ -1,3 +1,5 @@
+import { useThemeColors, type Palette } from '../appearance';
+import { MotionTouchableOpacity } from './MotionTouchableOpacity';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -23,6 +25,9 @@ export function ListContainer({
   onRetry,
   children,
 }: ListContainerProps) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -36,9 +41,9 @@ export function ListContainer({
         <Ionicons name="cloud-offline-outline" size={40} color={colors.textSecondary} />
         <Text style={styles.errorText}>{error}</Text>
         {onRetry ? (
-          <TouchableOpacity style={styles.retryBtn} onPress={onRetry}>
+          <MotionTouchableOpacity style={styles.retryBtn} onPress={onRetry}>
             <Text style={styles.retryText}>重试</Text>
-          </TouchableOpacity>
+          </MotionTouchableOpacity>
         ) : null}
       </View>
     );
@@ -47,7 +52,7 @@ export function ListContainer({
   return <View style={styles.flex}>{children}</View>;
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   flex: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.xl },
   errorText: { fontSize: 14, color: colors.textSecondary, textAlign: 'center' },

@@ -1,3 +1,4 @@
+import { useThemeColors, type Palette } from '../../appearance';
 import React, { useCallback, useEffect, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { FunctionShell } from '../../components/FunctionShell';
@@ -12,6 +13,9 @@ interface Props {
 }
 
 export function ExamSignupScreen({ onClose, onSessionExpired }: Props) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const [signupItems, setSignupItems] = useState<ExamSignupItem[]>([]);
   const [scoreItems, setScoreItems] = useState<ExamScoreItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,7 +105,7 @@ export function ExamSignupScreen({ onClose, onSessionExpired }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   card: {
     marginHorizontal: spacing.lg,

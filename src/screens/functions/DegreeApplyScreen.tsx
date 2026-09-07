@@ -1,3 +1,4 @@
+import { useThemeColors, type Palette } from '../../appearance';
 import React, { useCallback, useEffect, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { FunctionShell } from '../../components/FunctionShell';
@@ -12,6 +13,9 @@ interface Props {
 }
 
 export function DegreeApplyScreen({ onClose, onSessionExpired }: Props) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const [items, setItems] = useState<DegreeApplyRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -96,7 +100,7 @@ export function DegreeApplyScreen({ onClose, onSessionExpired }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   card: {
     marginHorizontal: spacing.lg,
     marginTop: spacing.md,

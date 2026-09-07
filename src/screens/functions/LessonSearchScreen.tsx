@@ -1,3 +1,5 @@
+import { useThemeColors, type Palette } from '../../appearance';
+import { MotionTouchableOpacity } from '../../components/MotionTouchableOpacity';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -14,6 +16,9 @@ interface Props {
 }
 
 export function LessonSearchScreen({ onClose, onSessionExpired }: Props) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [semesterId, setSemesterId] = useState<number | null>(null);
   const [searchText, setSearchText] = useState('');
@@ -109,13 +114,13 @@ export function LessonSearchScreen({ onClose, onSessionExpired }: Props) {
       <View style={styles.filters}>
         <View style={styles.semesterRow}>
           {semesters.slice(0, 8).map((s) => (
-            <TouchableOpacity
+            <MotionTouchableOpacity
               key={s.id}
               style={[styles.chip, s.id === semesterId && styles.chipActive]}
               onPress={() => setSemesterId(s.id)}
             >
               <Text style={[styles.chipText, s.id === semesterId && styles.chipTextActive]}>{s.nameZh}</Text>
-            </TouchableOpacity>
+            </MotionTouchableOpacity>
           ))}
         </View>
         <View style={styles.searchBar}>
@@ -177,7 +182,7 @@ export function LessonSearchScreen({ onClose, onSessionExpired }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   filters: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
   semesterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: 16, backgroundColor: colors.surface },

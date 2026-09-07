@@ -16,12 +16,19 @@ interface Props {
 export function LessonSearchScreen({ onClose, onSessionExpired }: Props) {
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [semesterId, setSemesterId] = useState<number | null>(null);
+  const [searchText, setSearchText] = useState('');
   const [keyword, setKeyword] = useState('');
   const [items, setItems] = useState<LessonSearchItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const studentIdRef = useRef(0);
+
+  // 输入防抖：停止输入 350ms 后自动发起查询
+  useEffect(() => {
+    const timer = setTimeout(() => setKeyword(searchText), 350);
+    return () => clearTimeout(timer);
+  }, [searchText]);
 
   const loadSemesters = useCallback(async () => {
     try {
@@ -91,9 +98,9 @@ export function LessonSearchScreen({ onClose, onSessionExpired }: Props) {
             style={styles.searchInput}
             placeholder="课程名称 / 代码"
             placeholderTextColor={colors.textSecondary}
-            value={keyword}
-            onChangeText={setKeyword}
-            onSubmitEditing={() => load()}
+            value={searchText}
+            onChangeText={setSearchText}
+            onSubmitEditing={() => setKeyword(searchText)}
             returnKeyType="search"
             autoCorrect={false}
           />
@@ -113,7 +120,11 @@ export function LessonSearchScreen({ onClose, onSessionExpired }: Props) {
               <Text style={styles.meta}>{item.code}</Text>
               {item.classes ? <Text style={styles.meta}>教学班：{item.classes}</Text> : null}
               {item.teachers.length ? <Text style={styles.meta}>教师：{item.teachers.join('、')}</Text> : null}
-              <Text style={styles.schedule} numberOfLines={3}>{item.scheduleText} {item.placeText}</Text>
+              {(item.placeText || item.scheduleText) ? (
+                <Text style={styles.schedule} numberOfLines={6}>
+                  {item.placeText || item.scheduleText}
+                </Text>
+              ) : null}
             </View>
           )}
         />

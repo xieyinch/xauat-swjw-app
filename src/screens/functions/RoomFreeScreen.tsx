@@ -12,21 +12,30 @@ interface Props {
   onSessionExpired: () => void;
 }
 
-function todayStr(): string {
-  const d = new Date();
+function fmt(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
 export function RoomFreeScreen({ onClose, onSessionExpired }: Props) {
   const [campuses, setCampuses] = useState<RoomCampusOption[]>([]);
   const [campus, setCampus] = useState<number | ''>('');
   const [units, setUnits] = useState<RoomUnitOption[]>([]);
-  const [date, setDate] = useState(todayStr());
+  const [date, setDate] = useState<Date>(() => new Date());
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   const [items, setItems] = useState<RoomFreeItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const shiftDate = useCallback((delta: number) => {
+    setDate((d) => {
+      const r = new Date(d);
+      r.setDate(r.getDate() + delta);
+      return r;
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,7 +88,7 @@ export function RoomFreeScreen({ onClose, onSessionExpired }: Props) {
       else setLoading(true);
       setError(null);
       try {
-        const data = await fetchRoomFree({ campusId: campus, date, units: selectedUnits, weeks: [] });
+        const data = await fetchRoomFree({ campusId: campus, date: fmt(date), units: selectedUnits, weeks: [] });
         setItems(data);
       } catch (e) {
         if ((e as Error).name === 'SessionExpiredError') {
@@ -135,8 +144,18 @@ export function RoomFreeScreen({ onClose, onSessionExpired }: Props) {
           ))}
         </View>
         <View style={styles.dateRow}>
-          <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
-          <Text style={styles.dateText}>{date}</Text>
+          <TouchableOpacity style={styles.dateArrow} onPress={() => shiftDate(-1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.dateCenter} onPress={() => setDate(new Date())} activeOpacity={0.6}>
+            <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
+            <Text style={styles.dateText}>{fmt(date)}</Text>
+            <Text style={styles.dateWeekday}>周{WEEKDAYS[date.getDay()]}</Text>
+            <Text style={styles.dateToday}>今天</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.dateArrow} onPress={() => shiftDate(1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="chevron-forward" size={20} color={colors.text} />
+          </TouchableOpacity>
         </View>
       </View>
       <ListContainer
@@ -178,8 +197,25 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary },
   chipText: { fontSize: 13, color: colors.text },
   chipTextActive: { color: '#fff', fontWeight: '600' },
-  dateRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  dateText: { fontSize: 13, color: colors.textSecondary },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.xs,
+  },
+  dateArrow: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  dateCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+  },
+  dateText: { fontSize: 13, color: colors.text, fontWeight: '600' },
+  dateWeekday: { fontSize: 12, color: colors.textSecondary },
+  dateToday: { fontSize: 12, color: colors.primary, fontWeight: '600' },
   roomCard: {
     flexDirection: 'row',
     alignItems: 'center',

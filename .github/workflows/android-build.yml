@@ -37,6 +37,9 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install Android NDK
+        run: sdkmanager "ndk;27.1.12297006"
+
       - name: Install dependencies
         run: npm ci
 

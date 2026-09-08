@@ -37,11 +37,17 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install Android NDK
+        run: sdkmanager "ndk;27.1.12297006"
+
       - name: Install dependencies
         run: npm ci
 
       - name: Generate native Android project
         run: npx expo prebuild --platform android --no-install --clean
+
+      - name: Sync Aora pet assets
+        run: npm run sync:aora-android
 
       - name: Build release APK
         working-directory: android
@@ -56,6 +62,7 @@ jobs:
           retention-days: 30
 
       - name: Publish APK to Release
+        if: github.event_name == 'push'
         uses: ncipollo/release-action@v1
         with:
           tag: latest

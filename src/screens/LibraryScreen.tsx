@@ -11,32 +11,48 @@ interface Props {
   title: string;
   uri: string;
   onClose: () => void;
+  /** Whether this persistent WebView is currently visible. */
+  active?: boolean;
+  /** Close directly on Android back instead of walking the H5 history. */
+  systemBackCloses?: boolean;
+  /** Observe navigation so callers can persist third-party session cookies. */
+  onNavigate?: (nav: WebViewNavigation, url: string) => void;
 }
 
-export function LibraryScreen({ title, uri, onClose }: Props) {
+export function LibraryScreen({ title, uri, onClose, active = true, systemBackCloses = false, onNavigate }: Props) {
   const colors = useThemeColors();
   const styles = make_styles(colors);
 
   const webViewRef = useRef<PortalWebViewHandle>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const canGoBackRef = useRef(false);
+  const onNavigateRef = useRef(onNavigate);
+
+  useEffect(() => {
+    onNavigateRef.current = onNavigate;
+  }, [onNavigate]);
 
   const handleNav = useCallback((nav: WebViewNavigation) => {
     canGoBackRef.current = nav.canGoBack;
     setCanGoBack(nav.canGoBack);
-  }, []);
+    onNavigateRef.current?.(nav, uri);
+  }, [uri]);
 
   const handleBack = useCallback(() => {
+    if (systemBackCloses) {
+      onClose();
+      return true;
+    }
     if (canGoBackRef.current) webViewRef.current?.goBack();
     else onClose();
     return true;
-  }, [onClose]);
+  }, [onClose, systemBackCloses]);
 
   useEffect(() => {
-    if (Platform.OS !== 'android') return;
+    if (Platform.OS !== 'android' || !active) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', handleBack);
     return () => subscription.remove();
-  }, [handleBack]);
+  }, [handleBack, active]);
 
   return (
     <View style={styles.container}>

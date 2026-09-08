@@ -5,6 +5,7 @@
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-cookies/cookies": "^6.2.1",
     "crypto-js": "^4.2.0",
     "expo": "~57.0.11",
     "expo-blur": "~57.0.2",
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -32,7 +34,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "sync:aora-android": "powershell -ExecutionPolicy Bypass -File scripts/sync-aora-assets.ps1"
+    "sync:aora-android": "node scripts/sync-aora-assets.cjs",
+    "postinstall": "patch-package"
   },
   "private": true
 }

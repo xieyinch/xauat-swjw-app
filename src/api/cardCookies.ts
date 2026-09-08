@@ -72,21 +72,44 @@ function pickStore(): {
  * 注意：CookieManager 的 get 在 Android 上会返回 HttpOnly Cookie，因此本方案适用于原生 APK 构建。
  */
 
+/** 解析出站点的裸 host（如 ydfwpt.xauat.edu.cn）与带斜杠的 origin（如 https://ydfwpt.xauat.edu.cn/）。
+ * Cookie 的 domain 必须用裸 host，不能带协议/路径；get/set 的 url 用 origin 才能命中全站 Cookie。 */
+function splitUrl(url: string): { host: string; origin: string } {
+  try {
+    const u = new URL(url);
+    return { host: u.hostname, origin: u.protocol + '//' + u.hostname + '/' };
+  } catch {
+    const m = url.match(/^https?:\/\/([^/]+)/);
+    const host = m ? m[1] : url;
+    return { host, origin: (m ? m[0] : 'https://' + host) + '/' };
+  }
+}
+
+/** 把捕获到的 domain 规范化为裸 host；兼容存储里可能是完整 URL 的情况。 */
+function toBareDomain(domain: string | undefined): string | undefined {
+  if (!domain) return undefined;
+  const m = domain.trim().match(/^https?:\/\/([^/]+)/);
+  return (m ? m[1] : domain.trim()) || undefined;
+}
+
 /** 捕获身份码（一卡通支付平台）已登录会话 Cookie 并持久化。
  * 在登录成功、页面跳转后的导航回调里调用。传入固定 CARD_PAY_URL 域，
  * 配合延迟等待，确保 WebView 原生 Set-Cookie 处理完成后再读取。 */
 export async function captureCardCookies(url: string): Promise<void> {
   try {
-    // 用域名根路径捕获（Cookie 挂在 ydfwpt.xauat.edu.cn 域下，根路径能覆盖所有 cookie）
-    const root = url.split('?')[0];
-    const cookies = await CookieManager.get(root, false);
-    const values = Object.values(cookies).filter((c) => c && c.value);
+    // 用 origin（根路径）捕获，确保拿到挂在 host 下所有路径的会话 Cookie
+    const { origin } = splitUrl(url);
+    const cookies = await CookieManager.get(origin, false);
+    const values = Object.values(cookies)
+      .filter((c) => c && c.value)
+      // 给丢失的 domain 补上裸 host，避免恢复时用整段 URL 当 domain 导致设置失败
+      .map((c) => ({ ...c, domain: c.domain || toBareDomain(origin) }));
     if (!values.length) return;
     const store = pickStore();
     await store.setItem(KEY_CARD_COOKIES, JSON.stringify(values));
     await setDiag(`CAPTURE n=${values.length} names=${values.map((c) => c.name).join(',')}`);
     // 诊断：确认捕获到的身份码会话 Cookie 数量与名称（release 也输出，便于 logcat 排查）
-    console.log('[cardCookies] capture url=' + root, 'count=' + values.length, 'names=' + values.map((c) => c.name).join(','));
+    console.log('[cardCookies] capture url=' + origin, 'count=' + values.length, 'names=' + values.map((c) => c.name).join(','));
   } catch {
     // 忽略
   }
@@ -102,8 +125,8 @@ export async function restoreCardCookies(url: string): Promise<void> {
     if (!Array.isArray(cookies)) return;
     // 诊断：确认恢复时从存储读到的会话 Cookie 数量与名称
     console.log('[cardCookies] restore url=' + url, 'count=' + cookies.length, 'names=' + cookies.map((c) => c.name).join(','));
-    // 用域名根设置 cookie，确保所有子路径（含 /plat/pay）都能共享
-    const root = url.split('?')[0];
+    // 用 origin 作为设置 url、裸 host 作为 domain，确保全站子路径（含 /plat/pay）都能共享
+    const { host, origin } = splitUrl(url);
     let setOk = 0;
     for (const c of cookies) {
       if (!c.name || !c.value) continue;
@@ -113,11 +136,12 @@ export async function restoreCardCookies(url: string): Promise<void> {
       const expires =
         c.expires ||
         new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
-      const ok = await CookieManager.set(root, {
+      const ok = await CookieManager.set(origin, {
         name: c.name,
         value: c.value,
-        domain: c.domain ?? root,
-        path: c.path ?? '/',
+        // domain 必须是裸 host；优先用捕获值（已规范化），否则回退当前站点 host
+        domain: toBareDomain(c.domain) ?? host,
+        path: c.path || '/',
         expires,
         secure: c.secure ?? true,
       });

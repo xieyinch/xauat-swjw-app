@@ -107,6 +107,15 @@ export async function fetchStudentInfo(): Promise<StudentInfo> {
     if (info) {
       name = info.name;
       stdNo = info.stdNo;
+    } else if (studentId) {
+      // 多学籍（微专业）下 exam 页变成「学籍信息」选择页，改从按学籍的考试信息页取姓名学号
+      const info2 = extractStudentNameStdNo(
+        guardSession(await webFetch(`/student/for-std/exam-arrange/info/${studentId}`)),
+      );
+      if (info2) {
+        name = info2.name;
+        stdNo = info2.stdNo;
+      }
     }
   } catch {
     // 考试页解析失败不影响学生信息
@@ -170,7 +179,20 @@ export async function fetchGrades(studentId: number, semesterId: number): Promis
 
 export async function fetchExams(): Promise<ExamItem[]> {
   const raw = guardSession(await webFetch(API.examPage));
-  return parseExamHtml(raw);
+  const list = parseExamHtml(raw);
+  if (list.length) return list;
+  // 多学籍（微专业）下考试页变成「学籍信息」选择页，改从按学籍的考试信息页取数据
+  try {
+    const info = await getStudentInfoCached();
+    if (info.studentId) {
+      const raw2 = guardSession(await webFetch(`/student/for-std/exam-arrange/info/${info.studentId}`));
+      const rows = parseExamHtml(raw2);
+      if (rows.length) return rows;
+    }
+  } catch {
+    // 学籍信息解析失败不影响
+  }
+  return list;
 }
 
 /** 通知公告（公开站点，走原生 fetch，无需登录） */

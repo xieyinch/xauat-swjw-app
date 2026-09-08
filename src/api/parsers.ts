@@ -336,9 +336,42 @@ export function parseSemestersFromCourseTable(html: string): Semester[] {  const
   }));
 }
 
+/**
+ * 从页面中解析学生学籍 id。
+ *
+ * - 老版（单一学籍）：页面直接内嵌 `var studentId = N`，取该值。
+ * - 新平面多学籍（含微专业）：`grade/sheet` 等模块变成「学籍信息」选择页，不再内嵌
+ *   studentId，而是把每个学籍（培养类型=主修 / 微专业）渲染成一张学生面板，
+ *   「查看详情」按钮的 value 即该学籍记录的 studentId。这里解析全部记录，
+ *   优先选「主修」，其次选第一个出现的记录，保证有/无数专业都能取到正确的学籍 id。
+ */
 export function extractStudentId(html: string): number | null {
   const m = html.match(/var studentId\s*=\s*(\d+)/) || html.match(/studentId['"]\s*:\s*(\d+)/);
-  return m ? Number(m[1]) : null;
+  if (m) return Number(m[1]);
+
+  const registrations = extractStudentRegistrations(html);
+  if (!registrations.length) return null;
+  const major = registrations.find((r) => r.kind.includes('主修'));
+  return major?.studentId ?? registrations[0].studentId ?? null;
+}
+
+export interface StudentRegistration {
+  kind: string;
+  studentId: number;
+}
+
+/** 解析「学籍信息」多学籍选择页中的所有学籍记录（培养类型 + 查看详情按钮 value=studentId） */
+export function extractStudentRegistrations(html: string): StudentRegistration[] {
+  const out: StudentRegistration[] = [];
+  const blocks = html.split('<div class="student-panel-block">');
+  // blocks[0] 是页面开头，跳过；每个块即一张学籍卡片
+  for (const b of blocks.slice(1)) {
+    const kindM = b.match(/<dt>培养类型<\/dt>\s*<dd>([^<]*)<\/dd>/);
+    const idM = b.match(/myFunction\(this\)"\s+value="(\d+)"/);
+    if (!idM) continue;
+    out.push({ kind: (kindM?.[1] ?? '').trim(), studentId: Number(idM[1]) });
+  }
+  return out;
 }
 
 export function extractStudentNameStdNo(html: string): { name: string; stdNo: string } | null {

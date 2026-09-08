@@ -102,14 +102,14 @@ export async function captureCardCookies(url: string): Promise<void> {
     const cookies = await CookieManager.get(origin, false);
     const values = Object.values(cookies)
       .filter((c) => c && c.value)
-      // 给丢失的 domain 补上裸 host，避免恢复时用整段 URL 当 domain 导致设置失败
+      // 给缺失 domain 的 cookie 补上裸 host，避免恢复时用整段 URL 当 domain 导致设置失败
       .map((c) => ({ ...c, domain: c.domain || toBareDomain(origin) }));
+    // 无条件写诊断（包括 n=0），用于区分「真的空」还是「根本没捕获到任何 cookie」
+    await setDiag(`CAPTURE n=${values.length} names=${values.map((c) => c.name).join(',')} raw=${Object.keys(cookies).join(',')}`);
+    console.log('[cardCookies] capture url=' + origin, 'count=' + values.length, 'names=' + values.map((c) => c.name).join(','));
     if (!values.length) return;
     const store = pickStore();
     await store.setItem(KEY_CARD_COOKIES, JSON.stringify(values));
-    await setDiag(`CAPTURE n=${values.length} names=${values.map((c) => c.name).join(',')}`);
-    // 诊断：确认捕获到的身份码会话 Cookie 数量与名称（release 也输出，便于 logcat 排查）
-    console.log('[cardCookies] capture url=' + origin, 'count=' + values.length, 'names=' + values.map((c) => c.name).join(','));
   } catch {
     // 忽略
   }

@@ -16,6 +16,7 @@ export interface PortalWebViewProps {
   userAgent?: string;
   onNavigationStateChange?: (nav: WebViewNavigation) => void;
   onLoadProgress?: (progress: number) => void;
+  onLoadEnd?: () => void;
   onError?: () => void;
   /** 是否处于未登录状态（通过注入脚本探测登录表单得出） */
   onLoginState?: (loggedIn: boolean) => void;
@@ -56,6 +57,7 @@ export const PortalWebView = forwardRef<PortalWebViewHandle, PortalWebViewProps>
       userAgent,
       onNavigationStateChange,
       onLoadProgress,
+      onLoadEnd,
       onError,
       onLoginState,
       injectedJavaScriptExtra,
@@ -89,6 +91,7 @@ export const PortalWebView = forwardRef<PortalWebViewHandle, PortalWebViewProps>
         onLoadProgress={(event: WebViewProgressEvent) => {
           onLoadProgress?.(event.nativeEvent.progress);
         }}
+        onLoadEnd={onLoadEnd}
         onError={onError}
         onHttpError={(event: WebViewHttpErrorEvent) => {
           onError?.();

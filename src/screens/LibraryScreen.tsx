@@ -15,22 +15,33 @@ interface Props {
   systemBackCloses?: boolean;
   /** 页面导航变化回调（用于身份码等需要持久化会话 Cookie 的第三方域） */
   onNavigate?: (nav: WebViewNavigation, url: string) => void;
+  /** 页面加载完成回调（用于身份码等需要自动填充登录表单的场景）；返回需注入的脚本 */
+  onLoadEnd?: () => string | null;
 }
 
-export function LibraryScreen({ title, uri, onClose, active = true, systemBackCloses = false, onNavigate }: Props) {
+export function LibraryScreen({ title, uri, onClose, active = true, systemBackCloses = false, onNavigate, onLoadEnd }: Props) {
   const webViewRef = useRef<PortalWebViewHandle>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const canGoBackRef = useRef(false);
   const onNavigateRef = useRef(onNavigate);
+  const onLoadEndRef = useRef(onLoadEnd);
   useEffect(() => {
     onNavigateRef.current = onNavigate;
   }, [onNavigate]);
+  useEffect(() => {
+    onLoadEndRef.current = onLoadEnd;
+  }, [onLoadEnd]);
 
   const handleNav = useCallback((nav: WebViewNavigation) => {
     canGoBackRef.current = nav.canGoBack;
     setCanGoBack(nav.canGoBack);
     onNavigateRef.current?.(nav, uri);
   }, [uri]);
+
+  const handleLoadEnd = useCallback(() => {
+    const script = onLoadEndRef.current?.();
+    if (script) webViewRef.current?.injectJavaScript(script);
+  }, []);
 
   const handleBack = useCallback(() => {
     if (systemBackCloses) {
@@ -64,7 +75,7 @@ export function LibraryScreen({ title, uri, onClose, active = true, systemBackCl
           </TouchableOpacity>
         </View>
       </View>
-      <PortalWebView ref={webViewRef} uri={uri} onNavigationStateChange={handleNav} />
+      <PortalWebView ref={webViewRef} uri={uri} onNavigationStateChange={handleNav} onLoadEnd={handleLoadEnd} />
     </View>
   );
 }

@@ -1,3 +1,5 @@
+import { useThemeColors, type Palette } from '../../appearance';
+import { MotionTouchableOpacity } from '../../components/MotionTouchableOpacity';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -39,6 +41,9 @@ function flatten(module: ProgramModule, depth = 0): FlattenNode[] {
 }
 
 export function ProgramScreen({ onClose, onSessionExpired }: Props) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const [nodes, setNodes] = useState<FlattenNode[]>([]);
   const [courses, setCourses] = useState<ProgramCourse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,12 +96,12 @@ export function ProgramScreen({ onClose, onSessionExpired }: Props) {
   return (
     <FunctionShell title="我的培养方案" onClose={onClose}>
       <View style={styles.tabs}>
-        <TouchableOpacity style={[styles.tab, !showCourses && styles.tabActive]} onPress={() => setShowCourses(false)}>
+        <MotionTouchableOpacity style={[styles.tab, !showCourses && styles.tabActive]} onPress={() => setShowCourses(false)}>
           <Text style={[styles.tabText, !showCourses && styles.tabTextActive]}>模块结构</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.tab, showCourses && styles.tabActive]} onPress={() => setShowCourses(true)}>
+        </MotionTouchableOpacity>
+        <MotionTouchableOpacity style={[styles.tab, showCourses && styles.tabActive]} onPress={() => setShowCourses(true)}>
           <Text style={[styles.tabText, showCourses && styles.tabTextActive]}>全部课程</Text>
-        </TouchableOpacity>
+        </MotionTouchableOpacity>
       </View>
       <ListContainer loading={loading} error={error} onRetry={() => load()} emptyText="暂无培养方案">
         {showCourses ? (
@@ -122,7 +127,7 @@ export function ProgramScreen({ onClose, onSessionExpired }: Props) {
             keyExtractor={(item) => String(item.id)}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
             renderItem={({ item }) => (
-              <TouchableOpacity
+              <MotionTouchableOpacity
                 style={[styles.node, { paddingLeft: spacing.lg + item.depth * 16 }]}
                 onPress={item.isModule ? () => toggleCollapse(item.id) : undefined}
                 activeOpacity={item.isModule ? 0.6 : 1}
@@ -141,7 +146,7 @@ export function ProgramScreen({ onClose, onSessionExpired }: Props) {
                   {item.meta ? <Text style={styles.nodeMeta} numberOfLines={1}>{item.meta}</Text> : null}
                 </View>
                 {item.isModule ? <Text style={styles.nodeCount}>{item.childrenCount}</Text> : null}
-              </TouchableOpacity>
+              </MotionTouchableOpacity>
             )}
           />
         )}
@@ -150,7 +155,7 @@ export function ProgramScreen({ onClose, onSessionExpired }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   tabs: { flexDirection: 'row', marginHorizontal: spacing.lg, marginTop: spacing.md, backgroundColor: colors.surface, borderRadius: 10, overflow: 'hidden' },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 8 },
   tabActive: { backgroundColor: colors.primary },

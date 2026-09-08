@@ -1,3 +1,5 @@
+import { useThemeColors, type Palette } from '../../appearance';
+import { MotionTouchableOpacity } from '../../components/MotionTouchableOpacity';
 import React, { useCallback, useEffect, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { FunctionShell } from '../../components/FunctionShell';
@@ -13,6 +15,9 @@ interface Props {
 }
 
 export function ProgramCompletionScreen({ onClose, onSessionExpired }: Props) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const [data, setData] = useState<ProgramCompletion | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -68,12 +73,12 @@ export function ProgramCompletionScreen({ onClose, onSessionExpired }: Props) {
               </View>
             </View>
             <View style={styles.tabs}>
-              <TouchableOpacity style={[styles.tab, tab === 'passed' && styles.tabActive]} onPress={() => setTab('passed')}>
+              <MotionTouchableOpacity style={[styles.tab, tab === 'passed' && styles.tabActive]} onPress={() => setTab('passed')}>
                 <Text style={[styles.tabText, tab === 'passed' && styles.tabTextActive]}>已修课程 ({data.passedCourses.length})</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.tab, tab === 'failed' && styles.tabActive]} onPress={() => setTab('failed')}>
+              </MotionTouchableOpacity>
+              <MotionTouchableOpacity style={[styles.tab, tab === 'failed' && styles.tabActive]} onPress={() => setTab('failed')}>
                 <Text style={[styles.tabText, tab === 'failed' && styles.tabTextActive]}>未修课程 ({data.failedCourses.length})</Text>
-              </TouchableOpacity>
+              </MotionTouchableOpacity>
             </View>
             <FlatList
               data={courses}
@@ -98,7 +103,7 @@ export function ProgramCompletionScreen({ onClose, onSessionExpired }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     marginHorizontal: spacing.lg,

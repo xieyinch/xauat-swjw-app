@@ -1,3 +1,5 @@
+import { useThemeColors, type Palette } from '../appearance';
+import { MotionTouchableOpacity } from '../components/MotionTouchableOpacity';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -10,6 +12,9 @@ interface Props {
 }
 
 export function NoticeScreen({ onOpenNotice }: Props) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const [notices, setNotices] = React.useState<NoticeItem[] | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -43,9 +48,9 @@ export function NoticeScreen({ onOpenNotice }: Props) {
         <View style={styles.center}>
           <Ionicons name="cloud-offline-outline" size={40} color={colors.textSecondary} />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => load()}>
+          <MotionTouchableOpacity style={styles.retryBtn} onPress={() => load()}>
             <Text style={styles.retryText}>重试</Text>
-          </TouchableOpacity>
+          </MotionTouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -56,13 +61,13 @@ export function NoticeScreen({ onOpenNotice }: Props) {
             notices && notices.length ? <Text style={styles.count}>共 {notices.length} 条公告</Text> : null
           }
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.noticeItem} onPress={() => onOpenNotice(item)} activeOpacity={0.6}>
+            <MotionTouchableOpacity style={styles.noticeItem} onPress={() => onOpenNotice(item)} activeOpacity={0.6}>
               <View style={styles.noticeBody}>
                 <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
                 <Text style={styles.date}>{item.date}</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-            </TouchableOpacity>
+            </MotionTouchableOpacity>
           )}
           ListEmptyComponent={
             <View style={styles.center}>
@@ -76,7 +81,7 @@ export function NoticeScreen({ onOpenNotice }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   count: { fontSize: 13, color: colors.textSecondary, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   noticeItem: {

@@ -1,3 +1,5 @@
+import { useThemeColors, type Palette } from '../appearance';
+import { MotionTouchableOpacity } from '../components/MotionTouchableOpacity';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -9,19 +11,23 @@ interface Props {
   title: string;
   uri: string;
   onClose: () => void;
-  /** 是否处于前台可见状态；常驻承载时用于停用返回键监听 */
+  /** Whether this persistent WebView is currently visible. */
   active?: boolean;
-  /** Android 系统返回键直接关闭页面（不沿 H5 历史后退），避免误退回登录态 */
+  /** Close directly on Android back instead of walking the H5 history. */
   systemBackCloses?: boolean;
-  /** 页面导航变化回调（用于身份码等需要持久化会话 Cookie 的第三方域） */
+  /** Observe navigation so callers can persist third-party session cookies. */
   onNavigate?: (nav: WebViewNavigation, url: string) => void;
 }
 
 export function LibraryScreen({ title, uri, onClose, active = true, systemBackCloses = false, onNavigate }: Props) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const webViewRef = useRef<PortalWebViewHandle>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const canGoBackRef = useRef(false);
   const onNavigateRef = useRef(onNavigate);
+
   useEffect(() => {
     onNavigateRef.current = onNavigate;
   }, [onNavigate]);
@@ -51,17 +57,17 @@ export function LibraryScreen({ title, uri, onClose, active = true, systemBackCl
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onClose} style={styles.btn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <MotionTouchableOpacity onPress={onClose} style={styles.btn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Ionicons name="arrow-back" size={22} color={colors.text} />
-        </TouchableOpacity>
+        </MotionTouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
         <View style={styles.actions}>
-          <TouchableOpacity onPress={() => webViewRef.current?.goBack()} disabled={!canGoBack} style={styles.btn}>
+          <MotionTouchableOpacity onPress={() => webViewRef.current?.goBack()} disabled={!canGoBack} style={styles.btn}>
             <Ionicons name="arrow-undo-outline" size={20} color={canGoBack ? colors.text : colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => webViewRef.current?.reload()} style={styles.btn}>
+          </MotionTouchableOpacity>
+          <MotionTouchableOpacity onPress={() => webViewRef.current?.reload()} style={styles.btn}>
             <Ionicons name="refresh-outline" size={20} color={colors.text} />
-          </TouchableOpacity>
+          </MotionTouchableOpacity>
         </View>
       </View>
       <PortalWebView ref={webViewRef} uri={uri} onNavigationStateChange={handleNav} />
@@ -69,7 +75,7 @@ export function LibraryScreen({ title, uri, onClose, active = true, systemBackCl
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   btn: { width: 32, alignItems: 'center' },

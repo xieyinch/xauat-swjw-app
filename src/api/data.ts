@@ -1,6 +1,7 @@
 import { SITE, API } from '../config/site';
 import type { CourseTableData, ExamItem, GradeData, MenuCategory, NoticeItem, Semester, StudentInfo } from '../types';
 import { isLoginPageText, webFetch } from './bridge';
+import { resolveCurrentSemester } from './semester';
 import {
   extractStudentId,
   extractStudentNameStdNo,
@@ -25,44 +26,24 @@ function guardSession(raw: string): string {
 }
 
 /** 从课表页面解析可选学期列表 */
+let semesterRequest: Promise<Semester[]> | null = null;
 export async function fetchSemesters(): Promise<Semester[]> {
+  if (semesterRequest) return semesterRequest;
+  const request = loadSemesters();
+  semesterRequest = request;
+  try { return await request; } finally { if (semesterRequest === request) semesterRequest = null; }
+}
+async function loadSemesters(): Promise<Semester[]> {
   const raw = guardSession(await webFetch(API.courseTablePage));
-  return parseSemestersFromCourseTable(raw);
+  const semesters = parseSemestersFromCourseTable(raw);
+  if (!semesters.length) {
+    throw new Error('未读取到学期数据，教务页面格式可能已更新');
+  }
+  return semesters;
 }
 
-/** 推断当前学期：优先取今天落在区间内的学期；空档期取「即将开始」或「最近结束」的学期，避免选到过于久远的新学期 */
-export function resolveCurrentSemester(semesters: Semester[]): Semester | null {
-  if (!semesters.length) return null;
-  const today = new Date();
-  const todayNum = today.getTime();
-  const inRange = semesters.find((s) => {
-    if (!s.startDate || !s.endDate) return false;
-    const start = new Date(s.startDate.replace(/-/g, '/'));
-    const end = new Date(s.endDate.replace(/-/g, '/'));
-    return todayNum >= start.getTime() && todayNum <= end.getTime();
-  });
-  if (inRange) return inRange;
-  let next: Semester | null = null;
-  let nextDiff = Infinity;
-  let last: Semester | null = null;
-  let lastDiff = Infinity;
-  for (const s of semesters) {
-    if (!s.startDate || !s.endDate) continue;
-    const start = new Date(s.startDate.replace(/-/g, '/')).getTime();
-    const end = new Date(s.endDate.replace(/-/g, '/')).getTime();
-    if (start >= todayNum && start - todayNum < nextDiff) {
-      next = s;
-      nextDiff = start - todayNum;
-    }
-    if (end <= todayNum && todayNum - end < lastDiff) {
-      last = s;
-      lastDiff = todayNum - end;
-    }
-  }
-  // 临近开学（30 天内）优先看新学期课表；假期前期优先看刚结束的学期
-  if (next && nextDiff <= 30 * 24 * 3600 * 1000) return next;
-  return last || next || semesters[0];
-}
+/** 按学校日期优先、学年名称后备的统一规则选择当前学期，不依赖列表顺序。 */
+export { resolveCurrentSemester };
 
 /** 将学期按「与当前日期最相关」排序：preferredId 置顶，其次进行中/刚结束的学期（越近越靠前），无日期与远期学期排最后 */
 export function rankSemesterCandidates(
@@ -128,6 +109,8 @@ export function getStudentInfoCached(): Promise<StudentInfo> {
 
 export function clearStudentInfoCache() {
   studentInfoPromise = null;
+  semesterRequest = null;
+  courseRequests.clear();
 }
 
 /** 课表接口原始返回（调试用） */
@@ -137,8 +120,14 @@ export async function fetchCourseTableRaw(semesterId: number): Promise<string> {
   );
 }
 
+const courseRequests = new Map<number, Promise<CourseTableData>>();
 export async function fetchCourseTable(semesterId: number): Promise<CourseTableData> {
-  return parseCourseTableJson(await fetchCourseTableRaw(semesterId));
+  // Deduplicate concurrent Home/Pet/timetable requests, but never keep stale timetable data.
+  const existing = courseRequests.get(semesterId);
+  if(existing) return existing;
+  const request = fetchCourseTableRaw(semesterId).then(raw => ({...parseCourseTableJson(raw), semesterId}));
+  courseRequests.set(semesterId,request);
+  try { return await request; } finally { if(courseRequests.get(semesterId)===request)courseRequests.delete(semesterId); }
 }
 
 /** 取「当前/最近且有课程」的学期课表：优先当前学期，空窗期自动回退到最近有课学期 */
@@ -175,12 +164,19 @@ export async function fetchExams(): Promise<ExamItem[]> {
 
 /** 通知公告（公开站点，走原生 fetch，无需登录） */
 export async function fetchNotices(): Promise<NoticeItem[]> {
-  const res = await fetch(SITE.noticeList, {
-    headers: { 'User-Agent': 'Mozilla/5.0' },
-  });
-  if (!res.ok) throw new Error('通知获取失败');
-  const html = await res.text();
-  return parseNoticeHtml(html, SITE.noticeList);
+  const urls = [SITE.noticeList, 'https://jwc.xauat.edu.cn/tzgg/xsxg.htm'];
+  const lists = await Promise.all(urls.map(async url => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+      const res = await fetch(url, { signal: controller.signal, headers: { 'User-Agent': 'Mozilla/5.0' } });
+      if (!res.ok) throw new Error('通知获取失败');
+      const list = parseNoticeHtml(await res.text(), url);
+      if (!list.length) throw new Error('通知列表未识别，请稍后重试');
+      return list;
+    } finally { clearTimeout(timer); }
+  }));
+  return [...new Map(lists.flat().map(n => [n.url, n])).values()].sort((a,b) => b.date.localeCompare(a.date));
 }
 
 /** 教务系统全部功能菜单（按分类分组） */

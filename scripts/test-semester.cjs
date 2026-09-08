@@ -1,0 +1,28 @@
+const fs = require('node:fs');
+const vm = require('node:vm');
+const ts = require('typescript');
+const assert = require('node:assert/strict');
+const code = ts.transpileModule(fs.readFileSync('src/api/semester.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+const context = { exports: {}, Date };
+vm.runInNewContext(code, context);
+const { resolveCurrentSemester: resolve, schoolDateKey } = context.exports;
+const s = (id, nameZh, startDate, endDate) => ({ id, nameZh, startDate, endDate });
+const list = [s(1,'2027-2028-1'), s(2,'2026-2027-1'), s(3,'2025-2026-3'), s(4,'2025-2026-2'), s(5,'2026-2027-2')];
+let cases=0;
+function check(rows, date, id) { assert.equal(resolve(rows,new Date(date))?.id ?? null,id); cases++; }
+check(list,'2026-09-05T12:00:00+08:00',2);
+check(list.slice().reverse(),'2026-09-05T12:00:00+08:00',2);
+check(list,'2027-01-20T12:00:00+08:00',2);
+check(list,'2027-02-01T00:00:00+08:00',5);
+check(list,'2027-09-01T00:00:00+08:00',1);
+check(list,'2026-08-31T15:59:59Z',4);
+check(list,'2026-08-31T16:00:00Z',2);
+check([list[0]],'2026-09-05T12:00:00+08:00',null);
+check([],'2026-09-05T12:00:00+08:00',null);
+check([s(6,'2026-2027-1','2026-08-24','2027-01-15'),...list],'2026-08-25T12:00:00+08:00',6);
+check([s(6,'2026-2027-1','2026-08-24','2027-01-15'),...list],'2027-01-15T23:59:59+08:00',6);
+check([s(7,'2025-2026-3','2026-07-01','2026-07-31'),...list],'2026-07-15T12:00:00+08:00',7);
+check([s(8,'2026-2027-1','invalid','invalid')],'2026-09-05T12:00:00+08:00',8);
+check([s(9,'2026-2027-1','2026-09-10','2027-01-15'),s(10,'2025-2026-2','2026-02-20','2026-07-01')],'2026-09-05T12:00:00+08:00',10);
+assert.equal(schoolDateKey(new Date('2026-09-04T16:00:00Z')),'2026-09-05');
+console.log(`${cases+1} semester and China-time checks passed`);

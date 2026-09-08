@@ -1,3 +1,4 @@
+import { useThemeColors, type Palette } from '../../appearance';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -23,6 +24,9 @@ const FIELDS: Array<{ key: keyof TutorInfo; label: string }> = [
 ];
 
 export function TutorScreen({ onClose, onSessionExpired }: Props) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const [tutor, setTutor] = useState<TutorInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -80,7 +84,7 @@ export function TutorScreen({ onClose, onSessionExpired }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   card: {
     marginHorizontal: spacing.lg,
     marginTop: spacing.md,

@@ -1,3 +1,5 @@
+import { useThemeColors, type Palette } from '../../appearance';
+import { MotionTouchableOpacity } from '../../components/MotionTouchableOpacity';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -19,6 +21,9 @@ function fmt(d: Date): string {
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
 export function RoomFreeScreen({ onClose, onSessionExpired }: Props) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const [campuses, setCampuses] = useState<RoomCampusOption[]>([]);
   const [campus, setCampus] = useState<number | ''>('');
   const [units, setUnits] = useState<RoomUnitOption[]>([]);
@@ -121,18 +126,18 @@ export function RoomFreeScreen({ onClose, onSessionExpired }: Props) {
       <View style={styles.filters}>
         <View style={styles.chipRow}>
           {campusOptions.map((c) => (
-            <TouchableOpacity
+            <MotionTouchableOpacity
               key={String(c.value)}
               style={[styles.chip, campus === c.value && styles.chipActive]}
               onPress={() => setCampus(c.value as number | '')}
             >
               <Text style={[styles.chipText, campus === c.value && styles.chipTextActive]}>{c.text}</Text>
-            </TouchableOpacity>
+            </MotionTouchableOpacity>
           ))}
         </View>
         <View style={styles.chipRow}>
           {units.map((u) => (
-            <TouchableOpacity
+            <MotionTouchableOpacity
               key={u.value}
               style={[styles.chip, selectedUnits.includes(u.value) && styles.chipActive]}
               onPress={() => toggleUnit(u.value)}
@@ -140,7 +145,7 @@ export function RoomFreeScreen({ onClose, onSessionExpired }: Props) {
               <Text style={[styles.chipText, selectedUnits.includes(u.value) && styles.chipTextActive]}>
                 {u.name}
               </Text>
-            </TouchableOpacity>
+            </MotionTouchableOpacity>
           ))}
         </View>
         <View style={styles.dateRow}>
@@ -188,7 +193,7 @@ export function RoomFreeScreen({ onClose, onSessionExpired }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   filters: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: {

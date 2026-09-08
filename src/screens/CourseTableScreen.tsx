@@ -1,5 +1,8 @@
+import { useThemeColors, type Palette } from '../appearance';
+import { useSchoolDay } from '../hooks/useSchoolDay';
+import { MotionTouchableOpacity } from '../components/MotionTouchableOpacity';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -11,9 +14,9 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { fetchCourseTable, fetchCourseTableRaw, fetchSemesters, rankSemesterCandidates, resolveCurrentSemester } from '../api/data';
+import { fetchCourseTable, fetchCourseTableRaw, fetchSemesters, resolveCurrentSemester } from '../api/data';
 import { inWeek } from '../api/parsers';
-import { FunctionShell } from '../components/FunctionShell';
+import { currentTeachingWeek, lessonsForDay } from '../api/schedule';
 import { refreshCourseWidget } from '../widget/courseWidget';
 import type { CourseLesson, CourseTableData, Semester } from '../types';
 import { colors, spacing } from '../theme';
@@ -27,37 +30,39 @@ const GAP = 3;
 const PAD = 5;
 
 const CARD_COLORS = [
-  '#5B8DD6',
-  '#7FA8E0',
-  '#E06B6B',
-  '#E98A8A',
+  '#A76948',
+  '#B38A60',
+  '#BC7866',
+  '#BD9369',
   '#D67A5B',
   '#C9A227',
-  '#4FAF9A',
-  '#8E8FD6',
-  '#D66B9A',
-  '#6BA3C9',
+  '#A28B60',
+  '#9D8973',
+  '#B77D69',
+  '#A89B7B',
 ];
 
-function colorFor(name: string): string {
+function colorFor(name: string, colors: Palette): string {
   let h = 0;
   for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return CARD_COLORS[h % CARD_COLORS.length];
+  if(colors.primary === '#A4623F') return CARD_COLORS[h % CARD_COLORS.length];
+  return [colors.primary, colors.primaryDark, colors.textSecondary][h % 3];
 }
 
 interface Props {
   onSessionExpired: () => void;
-  /** 提供时渲染为带关闭按钮的独立页（用于「全部」页里的我的课表入口） */
-  onClose?: () => void;
 }
 
-export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
+export function CourseTableScreen({ onSessionExpired }: Props) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const { width: winW } = useWindowDimensions();
   const colW = Math.max((winW - TIME_COL) / 7, 54);
 
+  const schoolDay = useSchoolDay();
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [semesterId, setSemesterId] = useState<number | null>(null);
-  const preloadedTableRef = useRef<{ sid: number; data: CourseTableData } | null>(null);
   const [table, setTable] = useState<CourseTableData | null>(null);
   const [week, setWeek] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -70,64 +75,35 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
     if (semesterId == null) return;
     try {
       const raw = await fetchCourseTableRaw(semesterId);
-      setDebugText(raw.slice(0, 30000));
+      const data = JSON.parse(raw);
+      setDebugText(JSON.stringify({ currentWeek: data.currentWeek, keys: Object.keys(data), semester: data.lessons?.[0]?.semester,
+        lessons: data.lessons?.map((l: any) => ({ name: l.course?.nameZh, schedule: l.scheduleText?.dateTimePlaceText?.textZh })) }, null, 2));
     } catch (e) {
       setDebugText(String((e as Error).message || e));
     }
     setDebugVisible(true);
   }, [semesterId]);
 
-  const defaultSemesterRef = useRef<number | null>(null);
-
-  const adoptTable = useCallback((data: CourseTableData) => {
-    setTable(data);
-    // 仅在当前/自动选中的默认学期时同步桌面组件，浏览历史学期不覆盖
-    if (data.semesterId === defaultSemesterRef.current) {
-      refreshCourseWidget(data);
-    }
-    const total = Math.max(1, data.totalWeeks || 1);
-    const cw = Math.min(Math.max(1, data.currentWeek || 1), total);
-    setWeek((w) => {
-      if (w > total) return cw;
-      if (w === 1) return cw;
-      return w;
-    });
-  }, []);
-
   const loadSemesters = useCallback(async () => {
+    setError(null);
     try {
       const list = await fetchSemesters();
       setSemesters(list);
-      const preferred = resolveCurrentSemester(list);
-      if (!preferred) return;
-      let chosen: Semester = preferred;
-      // 默认学期若有课程数据则直接用；否则自动跳到最近的「有课」学期，避免初次打开空白
-      for (const s of rankSemesterCandidates(list, preferred.id).slice(0, 6)) {
-        try {
-          const data = await fetchCourseTable(s.id);
-          if (data.lessons.length > 0) {
-            preloadedTableRef.current = { sid: s.id, data };
-            chosen = s;
-            break;
-          }
-        } catch (e) {
-          if ((e as Error).name === 'SessionExpiredError') {
-            onSessionExpired();
-            return;
-          }
-          // 单个学期读取失败则跳过，继续探测更近的其它学期
-        }
+      const current = resolveCurrentSemester(list);
+      if (current) setSemesterId(current.id);
+      else {
+        setLoading(false);
+        setError('未找到可用学期，请确认已经登录教务系统');
       }
-      defaultSemesterRef.current = chosen.id;
-      setSemesterId(chosen.id);
     } catch (e) {
       if ((e as Error).name === 'SessionExpiredError') {
         onSessionExpired();
         return;
       }
+      setLoading(false);
       setError((e as Error).message || '加载失败');
     }
-  }, [onSessionExpired]);
+  }, [onSessionExpired, schoolDay]);
 
   const loadTable = useCallback(
     async (sid: number, refresh?: boolean) => {
@@ -136,7 +112,11 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
       setError(null);
       try {
         const data = await fetchCourseTable(sid);
-        adoptTable(data);
+        setTable(data);
+        refreshCourseWidget(data);
+        const total = Math.max(1, data.totalWeeks || 1);
+        const cw = Math.min(Math.max(1, currentTeachingWeek(data) || 1), total);
+        setWeek(cw);
       } catch (e) {
         if ((e as Error).name === 'SessionExpiredError') {
           onSessionExpired();
@@ -148,7 +128,7 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
         setRefreshing(false);
       }
     },
-    [onSessionExpired, adoptTable],
+    [onSessionExpired],
   );
 
   useEffect(() => {
@@ -156,17 +136,10 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
   }, [loadSemesters]);
 
   useEffect(() => {
-    if (semesterId == null) return;
-    const pre = preloadedTableRef.current;
-    if (pre && pre.sid === semesterId) {
-      preloadedTableRef.current = null;
-      setError(null);
-      adoptTable(pre.data);
-      setLoading(false);
-      return;
+    if (semesterId != null) {
+      loadTable(semesterId);
     }
-    loadTable(semesterId);
-  }, [semesterId, loadTable, adoptTable]);
+  }, [semesterId, loadTable]);
 
   const totalUnits = useMemo(() => {
     if (!table) return 12;
@@ -183,7 +156,7 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
       const day = l.dayOfWeek ?? 0;
       const start = l.startUnit ?? 1;
       const end = l.endUnit ?? start;
-      if (day < 1 || day > 7 || start < 1 || start > totalUnits || !inWeek(l.weekText, week)) {
+      if (day < 1 || day > 7 || start < 1 || start > totalUnits || !lessonsForDay([l], week, day).length) {
         continue;
       }
       items.push({ ...l, day, start, end });
@@ -219,59 +192,59 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
             top: HEADER_H + (it.start - 1) * ROW_H,
             width: w - GAP,
             height: Math.min((it.end - it.start + 1) * ROW_H - GAP, (totalUnits - it.start + 1) * ROW_H - GAP),
-            bg: colorFor(it.nameZh),
+            bg: colorFor(it.nameZh, colors),
           });
         });
       }
     }
     placed.sort((a, b) => (a.startUnit ?? 99) - (b.startUnit ?? 99) || a.left - b.left);
     return placed;
-  }, [table, week, colW, totalUnits]);
+  }, [table, week, colW, totalUnits, colors]);
 
   const currentSemesterName = semesters.find((s) => s.id === semesterId)?.nameZh ?? '';
 
   const gridH = totalUnits * ROW_H;
   const gridW = TIME_COL + 7 * colW;
 
-  const body = (
+  return (
     <View style={styles.container}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.semesterBar}>
         {semesters.slice(0, 8).map((s) => {
           const active = s.id === semesterId;
           return (
-            <TouchableOpacity
+            <MotionTouchableOpacity
               key={s.id}
               style={[styles.chip, active && styles.chipActive]}
               onPress={() => setSemesterId(s.id)}
             >
               <Text style={[styles.chipText, active && styles.chipTextActive]}>{s.nameZh}</Text>
-            </TouchableOpacity>
+            </MotionTouchableOpacity>
           );
         })}
       </ScrollView>
 
       <View style={styles.weekBar}>
-        <TouchableOpacity style={styles.weekBtn} onPress={() => setWeek((w) => Math.max(1, w - 1))} disabled={week <= 1}>
+        <MotionTouchableOpacity style={styles.weekBtn} onPress={() => setWeek((w) => Math.max(1, w - 1))} disabled={week <= 1}>
           <Ionicons name="chevron-back" size={20} color={week <= 1 ? colors.border : colors.primary} />
-        </TouchableOpacity>
+        </MotionTouchableOpacity>
         <View style={styles.weekInfo}>
           <Text style={styles.weekText}>第 {week} 周</Text>
           {table ? (
             <Text style={styles.weekTotal}>
-              共 {table.totalWeeks} 周 · 当前第 {Math.min(Math.max(1, table.currentWeek || 1), table.totalWeeks)} 周
+              共 {table.totalWeeks} 周 · 当前第 {currentTeachingWeek(table) ?? '待确认'} 周
             </Text>
           ) : null}
         </View>
-        <TouchableOpacity
+        <MotionTouchableOpacity
           style={styles.weekBtn}
           onPress={() => setWeek((w) => Math.min(table?.totalWeeks ?? week, w + 1))}
           disabled={!table || week >= table.totalWeeks}
         >
           <Ionicons name="chevron-forward" size={20} color={!table || week >= table.totalWeeks ? colors.border : colors.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.weekBtn} onPress={openDebug}>
+        </MotionTouchableOpacity>
+        <MotionTouchableOpacity style={styles.weekBtn} onPress={openDebug}>
           <Ionicons name="bug-outline" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
+        </MotionTouchableOpacity>
       </View>
 
       {loading ? (
@@ -282,12 +255,12 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
         <View style={styles.center}>
           <Ionicons name="cloud-offline-outline" size={40} color={colors.textSecondary} />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
+          <MotionTouchableOpacity
             style={styles.retryBtn}
             onPress={() => (semesterId != null ? loadTable(semesterId) : loadSemesters())}
           >
             <Text style={styles.retryText}>重试</Text>
-          </TouchableOpacity>
+          </MotionTouchableOpacity>
         </View>
       ) : (
         <ScrollView
@@ -373,9 +346,9 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
           <View style={styles.debugPanel}>
             <View style={styles.debugHeader}>
               <Text style={styles.debugTitle}>课表接口原始数据</Text>
-              <TouchableOpacity onPress={() => setDebugVisible(false)}>
+              <MotionTouchableOpacity onPress={() => setDebugVisible(false)}>
                 <Ionicons name="close" size={22} color={colors.textSecondary} />
-              </TouchableOpacity>
+              </MotionTouchableOpacity>
             </View>
             <ScrollView style={styles.debugBody}>
               <Text selectable style={styles.debugText}>
@@ -388,23 +361,16 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
       </Modal>
     </View>
   );
-
-  if (!onClose) return body;
-  return (
-    <FunctionShell title="我的课表" onClose={onClose}>
-      <View style={styles.container}>{body}</View>
-    </FunctionShell>
-  );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+const make_styles = (colors: Palette) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: 'transparent' },
   semesterBar: { flexGrow: 0, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   chip: {
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: colors.surfaceContainer,
+    backgroundColor: colors.surface,
     marginRight: spacing.sm,
   },
   chipActive: { backgroundColor: colors.primary },
@@ -428,19 +394,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
   },
-  gridScroll: { flex: 1, backgroundColor: colors.background },
+  gridScroll: { flex: 1, backgroundColor: 'transparent' },
   headerRow: {
     flexDirection: 'row',
     height: HEADER_H,
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
   headerCell: { flex: 1, textAlign: 'center', fontSize: 13, fontWeight: '600', color: colors.text },
   grid: {
     position: 'absolute',
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
     borderLeftWidth: StyleSheet.hairlineWidth,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
@@ -461,7 +427,8 @@ const styles = StyleSheet.create({
   },
   lessonBlock: {
     position: 'absolute',
-    borderRadius: 8,
+    borderRadius: 10,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.6)",
     paddingHorizontal: PAD,
     paddingVertical: 3,
     justifyContent: 'flex-start',
@@ -472,7 +439,7 @@ const styles = StyleSheet.create({
   timeCol: {
     position: 'absolute',
     left: 0,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: colors.border,
     zIndex: 5,

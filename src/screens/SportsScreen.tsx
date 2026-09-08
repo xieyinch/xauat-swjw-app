@@ -1,3 +1,5 @@
+import { useThemeColors, type Palette } from '../appearance';
+import { MotionTouchableOpacity } from '../components/MotionTouchableOpacity';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -11,6 +13,9 @@ interface Props {
 }
 
 export function SportsScreen({ onClose }: Props) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const webViewRef = useRef<PortalWebViewHandle>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const canGoBackRef = useRef(false);
@@ -38,12 +43,12 @@ export function SportsScreen({ onClose }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onClose} style={styles.btn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <MotionTouchableOpacity onPress={onClose} style={styles.btn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Ionicons name="arrow-back" size={22} color={colors.text} />
-        </TouchableOpacity>
+        </MotionTouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>体育馆预约</Text>
         <View style={styles.actions}>
-          <TouchableOpacity
+          <MotionTouchableOpacity
             onPress={() => webViewRef.current?.goBack()}
             disabled={!canGoBack}
             style={styles.btn}
@@ -54,14 +59,14 @@ export function SportsScreen({ onClose }: Props) {
               size={20}
               color={canGoBack ? colors.text : colors.textSecondary}
             />
-          </TouchableOpacity>
-          <TouchableOpacity
+          </MotionTouchableOpacity>
+          <MotionTouchableOpacity
             onPress={() => webViewRef.current?.reload()}
             style={styles.btn}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="refresh-outline" size={20} color={colors.text} />
-          </TouchableOpacity>
+          </MotionTouchableOpacity>
         </View>
       </View>
       <PortalWebView
@@ -73,7 +78,7 @@ export function SportsScreen({ onClose }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',

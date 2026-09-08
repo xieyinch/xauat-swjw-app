@@ -1,3 +1,5 @@
+import { useThemeColors, type Palette } from '../../appearance';
+import { MotionTouchableOpacity } from '../../components/MotionTouchableOpacity';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useState } from 'react';
 import { FlatList, Linking, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -14,6 +16,9 @@ interface Props {
 }
 
 export function CommonFileScreen({ onClose, onSessionExpired }: Props) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const [categories, setCategories] = useState<Array<{ id: number; nameZh: string }>>([]);
   const [category, setCategory] = useState<number | null>(null);
   const [items, setItems] = useState<CommonFileItem[]>([]);
@@ -71,17 +76,17 @@ export function CommonFileScreen({ onClose, onSessionExpired }: Props) {
     <FunctionShell title="常用文件下载" onClose={onClose}>
       <View style={styles.filters}>
         <View style={styles.chipRow}>
-          <TouchableOpacity style={[styles.chip, category == null && styles.chipActive]} onPress={() => setCategory(null)}>
+          <MotionTouchableOpacity style={[styles.chip, category == null && styles.chipActive]} onPress={() => setCategory(null)}>
             <Text style={[styles.chipText, category == null && styles.chipTextActive]}>全部</Text>
-          </TouchableOpacity>
+          </MotionTouchableOpacity>
           {categories.map((c) => (
-            <TouchableOpacity
+            <MotionTouchableOpacity
               key={c.id}
               style={[styles.chip, category === c.id && styles.chipActive]}
               onPress={() => setCategory(c.id)}
             >
               <Text style={[styles.chipText, category === c.id && styles.chipTextActive]}>{c.nameZh}</Text>
-            </TouchableOpacity>
+            </MotionTouchableOpacity>
           ))}
         </View>
       </View>
@@ -91,7 +96,7 @@ export function CommonFileScreen({ onClose, onSessionExpired }: Props) {
           keyExtractor={(item) => String(item.id)}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => handleDownload(item)}>
+            <MotionTouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => handleDownload(item)}>
               <View style={styles.iconWrap}>
                 <Ionicons name="document-outline" size={20} color={colors.primary} />
               </View>
@@ -105,7 +110,7 @@ export function CommonFileScreen({ onClose, onSessionExpired }: Props) {
                 <Text style={styles.date}>{item.publishDate}</Text>
                 <Ionicons name="download-outline" size={18} color={colors.primary} />
               </View>
-            </TouchableOpacity>
+            </MotionTouchableOpacity>
           )}
         />
       </ListContainer>
@@ -113,7 +118,7 @@ export function CommonFileScreen({ onClose, onSessionExpired }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   filters: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: 16, backgroundColor: colors.surface },

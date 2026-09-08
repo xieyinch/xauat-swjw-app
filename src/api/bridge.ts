@@ -37,18 +37,29 @@ export function isWebViewReady() {
 }
 
 let ready = false;
+let readyError: Error | null = null;
 const readyWaiters: Array<(err?: Error) => void> = [];
 
 /** 页面加载完成后标记数据桥就绪（之后 webFetch 才会真正注入执行） */
 export function markWebReady() {
   ready = true;
+  readyError = null;
   const waiters = readyWaiters.splice(0);
   for (const w of waiters) w();
+}
+
+/** 将主框架加载失败传给所有数据请求，避免课表/成绩页永久等待。 */
+export function markWebFailed(message?: string) {
+  ready = false;
+  readyError = new Error(message || '无法连接学校教务系统，请检查网络或校园 VPN');
+  const waiters = readyWaiters.splice(0);
+  for (const w of waiters) w(readyError);
 }
 
 /** 会话重建（重新登录/切换页面）后重置就绪标记，等待新页面加载完成 */
 export function resetWebReady() {
   ready = false;
+  readyError = null;
   const waiters = readyWaiters.splice(0);
   for (const w of waiters) w(new NotReadyError());
 }
@@ -56,6 +67,7 @@ export function resetWebReady() {
 /** 等待数据桥就绪；就绪后立即 resolve */
 export function webFetchReady(): Promise<void> {
   if (ready) return Promise.resolve();
+  if (readyError) return Promise.reject(readyError);
   return new Promise((resolve, reject) => {
     readyWaiters.push((err) => (err ? reject(err) : resolve()));
   });
@@ -91,9 +103,7 @@ export function webFetch(
   path: string,
   init?: { method?: string; body?: string; headers?: Record<string, string> },
 ): Promise<string> {
-  return webFetchReady()
-    .then(() => attemptFetch(path, init ?? {}, 0))
-    .catch(() => attemptFetch(path, init ?? {}, 0));
+  return webFetchReady().then(() => attemptFetch(path, init ?? {}, 0));
 }
 
 function attemptFetch(
@@ -139,7 +149,7 @@ function injectFetch(path: string, init: Record<string, unknown>): Promise<strin
             var p = ${JSON.stringify(path)};
             var o = ${JSON.stringify(init || {})};
             fetch(p, o)
-              .then(function (r) { return r.text(); })
+              .then(function (r) { if (!r.ok) throw new Error('教务请求失败 HTTP ' + r.status); return r.text(); })
               .then(function (t) {
                 window.ReactNativeWebView.postMessage(JSON.stringify({ __t: ${id}, ok: true, d: t }));
               })

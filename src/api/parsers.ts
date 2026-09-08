@@ -171,6 +171,7 @@ export function parseCourseTableJson(raw: string): CourseTableData {
       const dayMatch = timeText.match(DAY_RE);
       const unit = parseUnitRange(timeText);
       lessons.push({
+        campus: seg.includes('草堂校区') ? '草堂' : seg.includes('雁塔校区') ? '雁塔' : undefined,
         id: lesson.id as number,
         nameZh,
         code,
@@ -187,6 +188,7 @@ export function parseCourseTableJson(raw: string): CourseTableData {
   }
   return {
     semesterId: d.semesterId as number,
+    semester: d.lessons?.[0]?.semester,
     totalWeeks: Math.max(1, Array.isArray(d.weekIndices) ? d.weekIndices.length : Number(d.totalWeeks ?? 1) || 1),
     currentWeek: Number(d.currentWeek ?? 1),
     lessons,
@@ -283,7 +285,7 @@ export function parseNoticeHtml(html: string, listUrl: string): NoticeItem[] {
     const titleText = titleM ? stripHtml(titleM[1]) : title;
     const dateM = li.match(/<span[^>]*>(\d{4}-\d{2}-\d{2})<\/span>/);
     const date = dateM ? dateM[1] : '';
-    if (!titleText) continue;
+    if (!titleText || !date) continue;
     const url = new URL(href, listUrl).href;
     const idM = url.match(/wbnewsid=(\d+)/);
     items.push({ id: idM ? idM[1] : url, title: titleText, date, href, url });
@@ -331,8 +333,8 @@ export function parseSemestersFromCourseTable(html: string): Semester[] {  const
   return arr.map((s) => ({
     id: Number(s.id),
     nameZh: String(s.nameZh ?? s.name ?? ''),
-    startDate: (s.startDate as string) ?? undefined,
-    endDate: (s.endDate as string) ?? undefined,
+    startDate: typeof (s.startDate ?? s.beginOn) === 'string' ? String(s.startDate ?? s.beginOn) : undefined,
+    endDate: typeof (s.endDate ?? s.endOn) === 'string' ? String(s.endDate ?? s.endOn) : undefined,
   }));
 }
 
@@ -358,7 +360,7 @@ interface WeekRange {
 
 /** 解析「1-16周」「12~14(双),15周」为周次区间集合 */
 export function parseWeekRanges(weekText: string): WeekRange[] {
-  const text = (weekText || '').replace(/周/g, '').replace(/[（）]/g, (m) => (m === '（' ? '(' : ')'));
+  const text = (weekText || '').replace(/周|\s/g, '').replace(/[－～—–]/g, '-').replace(/[（）]/g, (m) => (m === '（' ? '(' : ')'));
   const segs = text.split(/[,，、;；]/);
   const ranges: WeekRange[] = [];
   for (const seg of segs) {
@@ -377,4 +379,3 @@ export function inWeek(weekText: string, week: number): boolean {
     (r) => week >= r.from && week <= r.to && (!r.odd || week % 2 === 1) && (!r.even || week % 2 === 0),
   );
 }
-

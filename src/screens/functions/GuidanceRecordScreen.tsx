@@ -1,3 +1,4 @@
+import { useThemeColors, type Palette } from '../../appearance';
 import React, { useCallback, useEffect, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { FunctionShell } from '../../components/FunctionShell';
@@ -12,6 +13,9 @@ interface Props {
 }
 
 export function GuidanceRecordScreen({ onClose, onSessionExpired }: Props) {
+  const colors = useThemeColors();
+  const styles = make_styles(colors);
+
   const [records, setRecords] = useState<GuidanceRecord[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -67,7 +71,7 @@ export function GuidanceRecordScreen({ onClose, onSessionExpired }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: Palette) => StyleSheet.create({
   summary: { fontSize: 13, color: colors.textSecondary, paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   card: {
     marginHorizontal: spacing.lg,

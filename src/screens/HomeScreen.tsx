@@ -12,7 +12,6 @@ const ENTRIES = [
   { key:'sports', label:'体育馆预约', icon:'basketball-outline', color:'#F97316' },
   { key:'library-reserve', label:'图书馆预约', icon:'library-outline', color:'#0A66C2' },
   { key:'my-library', label:'我的图书馆', icon:'book-outline', color:'#12B76A' },
-  { key:'ydfwpt', label:'身份码', icon:'qr-code-outline', color:'#8B5CF6' },
 ];
 const WEEK_LABELS:Record<number,string>={1:'周一',2:'周二',3:'周三',4:'周四',5:'周五',6:'周六',7:'周日'};
 export function HomeScreen({user,onNavigate,onSessionExpired,onLogout}:Props){

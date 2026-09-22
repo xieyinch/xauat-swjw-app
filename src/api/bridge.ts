@@ -91,9 +91,8 @@ export function webFetch(
   path: string,
   init?: { method?: string; body?: string; headers?: Record<string, string> },
 ): Promise<string> {
-  return webFetchReady()
-    .then(() => attemptFetch(path, init ?? {}, 0))
-    .catch(() => attemptFetch(path, init ?? {}, 0));
+  // 会话重建时不要绕过就绪门控，避免请求被注入认证页并再次触发登录。
+  return webFetchReady().then(() => attemptFetch(path, init ?? {}, 0));
 }
 
 function attemptFetch(

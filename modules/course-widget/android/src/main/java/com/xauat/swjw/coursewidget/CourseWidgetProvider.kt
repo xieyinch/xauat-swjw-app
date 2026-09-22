@@ -1,6 +1,7 @@
 package com.xauat.swjw.coursewidget
 
 import android.app.PendingIntent
+import android.app.AlarmManager
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
@@ -15,6 +16,15 @@ import android.widget.RemoteViews
 import org.json.JSONObject
 
 class CourseWidgetProvider : AppWidgetProvider() {
+  override fun onReceive(context: Context, intent: Intent) {
+    super.onReceive(context, intent)
+    if (intent.action == ACTION_REFRESH || intent.action == Intent.ACTION_TIME_CHANGED ||
+      intent.action == Intent.ACTION_TIMEZONE_CHANGED || intent.action == Intent.ACTION_DATE_CHANGED) {
+      val manager = AppWidgetManager.getInstance(context)
+      updateAll(context, manager, manager.getAppWidgetIds(ComponentName(context, CourseWidgetProvider::class.java)))
+    }
+  }
+
   override fun onUpdate(
     context: Context,
     appWidgetManager: AppWidgetManager,
@@ -25,6 +35,7 @@ class CourseWidgetProvider : AppWidgetProvider() {
 
   companion object {
     private const val OPEN_URI = "xauatswjw://course-table"
+    private const val ACTION_REFRESH = "com.xauat.swjw.coursewidget.REFRESH"
 
     private val LEFT_HEAD = intArrayOf(R.id.col_l_c1, R.id.col_l_c2, R.id.col_l_c3)
     private val LEFT_SUB = intArrayOf(R.id.col_l_s1, R.id.col_l_s2, R.id.col_l_s3)
@@ -35,7 +46,8 @@ class CourseWidgetProvider : AppWidgetProvider() {
 
     fun updateAll(context: Context, manager: AppWidgetManager, ids: IntArray) {
       persistAccentPalette(context)
-      val payload = WidgetData.parse(WidgetData.load(context))
+      val stored = WidgetData.parse(WidgetData.load(context))
+      val payload = WidgetData.current(stored)
       for (id in ids) {
         try {
           val views = RemoteViews(context.packageName, R.layout.course_widget)
@@ -59,6 +71,16 @@ class CourseWidgetProvider : AppWidgetProvider() {
           // 单个组件更新失败不影响其它实例与系统
         }
       }
+      scheduleNext(context, WidgetData.nextChange(stored), ids.isNotEmpty())
+    }
+
+    private fun scheduleNext(context: Context, next: Long?, enabled: Boolean) {
+      val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+      val intent = Intent(context, CourseWidgetProvider::class.java).apply { action = ACTION_REFRESH }
+      val pending = PendingIntent.getBroadcast(context, 1, intent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+      alarm.cancel(pending)
+      if (enabled && next != null) alarm.setAndAllowWhileIdle(AlarmManager.RTC, next, pending)
     }
 
     private fun bindColumn(

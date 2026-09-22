@@ -4,7 +4,10 @@ import { requireNativeModule } from 'expo-modules-core';
 export type WidgetCourseSlot = {
   head: string;
   sub: string;
+  endAt?: number;
 };
+
+export type WidgetDay = { date: string; week: number; slots: WidgetCourseSlot[] };
 
 export type CourseWidgetPayload = {
   header: string;
@@ -13,6 +16,7 @@ export type CourseWidgetPayload = {
   rightTitle: string;
   left: WidgetCourseSlot[];
   right: WidgetCourseSlot[];
+  days?: WidgetDay[];
 };
 
 type CourseWidgetNativeModule = {

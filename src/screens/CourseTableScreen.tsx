@@ -11,7 +11,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { fetchCourseTable, fetchCourseTableRaw, fetchSemesters, rankSemesterCandidates, resolveCurrentSemester } from '../api/data';
+import { fetchCourseTable, fetchCourseTableRaw, fetchCourseUnitTimes, fetchSemesters, rankSemesterCandidates, resolveCurrentSemester } from '../api/data';
 import { inWeek } from '../api/parsers';
 import { FunctionShell } from '../components/FunctionShell';
 import { refreshCourseWidget } from '../widget/courseWidget';
@@ -20,7 +20,7 @@ import { colors, spacing } from '../theme';
 
 const WEEK_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
-const TIME_COL = 46;
+const TIME_COL = 58;
 const HEADER_H = 40;
 const ROW_H = 66;
 const GAP = 3;
@@ -59,6 +59,7 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
   const [semesterId, setSemesterId] = useState<number | null>(null);
   const preloadedTableRef = useRef<{ sid: number; data: CourseTableData } | null>(null);
   const [table, setTable] = useState<CourseTableData | null>(null);
+  const [unitTimes, setUnitTimes] = useState<Record<number, { start: string; end: string }>>({});
   const [week, setWeek] = useState(1);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -154,6 +155,16 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
   useEffect(() => {
     loadSemesters();
   }, [loadSemesters]);
+
+  useEffect(() => {
+    if (semesterId == null) return;
+    setUnitTimes({});
+    let active = true;
+    fetchCourseUnitTimes(semesterId).then((times) => {
+      if (active) setUnitTimes(times);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [semesterId]);
 
   useEffect(() => {
     if (semesterId == null) return;
@@ -356,6 +367,9 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
               {Array.from({ length: totalUnits }).map((_, i) => (
                 <View key={`t-${i}`} style={[styles.timeCell, { height: ROW_H }]}>
                   <Text style={styles.timeText}>{i + 1}</Text>
+                  {unitTimes[i + 1] ? (
+                    <Text style={styles.unitTimeText}>{unitTimes[i + 1].start}{'\n'}{unitTimes[i + 1].end}</Text>
+                  ) : null}
                 </View>
               ))}
             </View>
@@ -479,6 +493,7 @@ const styles = StyleSheet.create({
   },
   timeCell: { alignItems: 'center', justifyContent: 'flex-start', paddingTop: 6 },
   timeText: { fontSize: 12, color: colors.textSecondary },
+  unitTimeText: { fontSize: 10, lineHeight: 13, color: colors.textSecondary, textAlign: 'center', marginTop: 3 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.xl },
   errorText: { fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
   retryBtn: {

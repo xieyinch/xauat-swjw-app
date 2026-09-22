@@ -5,6 +5,7 @@ import {
   extractStudentId,
   extractStudentNameStdNo,
   parseCourseTableJson,
+  parseCourseUnitTimes,
   parseExamHtml,
   parseGradeJson,
   parseMenu,
@@ -28,6 +29,18 @@ function guardSession(raw: string): string {
 export async function fetchSemesters(): Promise<Semester[]> {
   const raw = guardSession(await webFetch(API.courseTablePage));
   return parseSemestersFromCourseTable(raw);
+}
+
+/** 与教务原页面相同：先取学期的 timeTableLayoutId，再读取 courseUnitList。 */
+export async function fetchCourseUnitTimes(semesterId: number): Promise<Record<number, { start: string; end: string }>> {
+  const table = JSON.parse(await fetchCourseTableRaw(semesterId));
+  if (table.timeTableLayoutId == null) return {};
+  const raw = guardSession(await webFetch('/student/ws/schedule-table/timetable-layout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ timeTableLayoutId: table.timeTableLayoutId }),
+  }));
+  return parseCourseUnitTimes(raw);
 }
 
 /** 推断当前学期：优先取今天落在区间内的学期；空档期取「即将开始」或「最近结束」的学期，避免选到过于久远的新学期 */

@@ -14,6 +14,8 @@ export interface CourseLesson {
   teacher: string;
   timeText: string;
   placeText: string;
+  /** 原课表地点中的校区，供两校区节次时间匹配 */
+  campus?: 'yanta' | 'caotang';
   /** 星期几，1=周一 … 7=周日（由 scheduleText 解析） */
   dayOfWeek?: number;
   /** 起始节次（由 scheduleText 解析） */

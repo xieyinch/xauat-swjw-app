@@ -11,12 +11,13 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { fetchCourseTable, fetchCourseTableRaw, fetchCourseUnitTimes, fetchSemesters, rankSemesterCandidates, resolveCurrentSemester } from '../api/data';
+import { fetchCourseTable, fetchCourseTableRaw, fetchSemesters, rankSemesterCandidates, resolveCurrentSemester } from '../api/data';
 import { inWeek } from '../api/parsers';
 import { FunctionShell } from '../components/FunctionShell';
 import { refreshCourseWidget } from '../widget/courseWidget';
 import type { CourseLesson, CourseTableData, Semester } from '../types';
 import { colors, spacing } from '../theme';
+import { campusForLesson, dominantCampus, unitTime } from '../widget/classTimes';
 
 const WEEK_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
@@ -59,7 +60,6 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
   const [semesterId, setSemesterId] = useState<number | null>(null);
   const preloadedTableRef = useRef<{ sid: number; data: CourseTableData } | null>(null);
   const [table, setTable] = useState<CourseTableData | null>(null);
-  const [unitTimes, setUnitTimes] = useState<Record<number, { start: string; end: string }>>({});
   const [week, setWeek] = useState(1);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -158,16 +158,6 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
 
   useEffect(() => {
     if (semesterId == null) return;
-    setUnitTimes({});
-    let active = true;
-    fetchCourseUnitTimes(semesterId).then((times) => {
-      if (active) setUnitTimes(times);
-    }).catch(() => {});
-    return () => { active = false; };
-  }, [semesterId]);
-
-  useEffect(() => {
-    if (semesterId == null) return;
     const pre = preloadedTableRef.current;
     if (pre && pre.sid === semesterId) {
       preloadedTableRef.current = null;
@@ -240,6 +230,13 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
   }, [table, week, colW, totalUnits]);
 
   const currentSemesterName = semesters.find((s) => s.id === semesterId)?.nameZh ?? '';
+  const semesterStart = semesters.find((s) => s.id === semesterId)?.startDate;
+  const displayDate = semesterStart && /^\d{4}-\d{2}-\d{2}$/.test(semesterStart)
+    ? new Date(Number(semesterStart.slice(0, 4)), Number(semesterStart.slice(5, 7)) - 1,
+      Number(semesterStart.slice(8, 10)) + (week - 1) * 7)
+    : new Date();
+  const visibleLessons = table?.lessons.filter((l) => inWeek(l.weekText, week)) ?? [];
+  const gridCampus = dominantCampus(visibleLessons) ?? dominantCampus(table?.lessons ?? []);
 
   const gridH = totalUnits * ROW_H;
   const gridW = TIME_COL + 7 * colW;
@@ -356,6 +353,9 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
                         {b.nameZh}
                       </Text>
                       {b.placeText ? <Text style={styles.blockPlace}>@{b.placeText}</Text> : null}
+                      {campusForLesson(b) && campusForLesson(b) !== gridCampus ? (
+                        <Text style={styles.blockPlace}>{unitTime(campusForLesson(b), b.startUnit ?? 0, displayDate)?.start}–{unitTime(campusForLesson(b), b.endUnit ?? 0, displayDate)?.end}</Text>
+                      ) : null}
                       {parity ? <Text style={styles.blockParity}>{parity}</Text> : null}
                     </View>
                   );
@@ -367,8 +367,8 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
               {Array.from({ length: totalUnits }).map((_, i) => (
                 <View key={`t-${i}`} style={[styles.timeCell, { height: ROW_H }]}>
                   <Text style={styles.timeText}>{i + 1}</Text>
-                  {unitTimes[i + 1] ? (
-                    <Text style={styles.unitTimeText}>{unitTimes[i + 1].start}{'\n'}{unitTimes[i + 1].end}</Text>
+                  {unitTime(gridCampus, i + 1, displayDate) ? (
+                    <Text style={styles.unitTimeText}>{unitTime(gridCampus, i + 1, displayDate)?.start}{'\n'}{unitTime(gridCampus, i + 1, displayDate)?.end}</Text>
                   ) : null}
                 </View>
               ))}

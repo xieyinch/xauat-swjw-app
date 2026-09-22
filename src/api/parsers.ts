@@ -71,28 +71,6 @@ function firstNonEmpty(...parts: (string | null | undefined)[]): string {
 const WEEK_RE = /([0-9~\-－～,，、;；()（）\u5355\u53cc]+周)/;
 const DAY_RE = /(?:星期|周)([一二三四五六日天])/;
 
-/** 教务课表原页面通过 timetable-layout 接口取得 courseUnitList。 */
-export function parseCourseUnitTimes(raw: string): Record<number, { start: string; end: string }> {
-  const result: Record<number, { start: string; end: string }> = {};
-  const data = JSON.parse(raw);
-  const units = data?.result?.courseUnitList;
-  if (!Array.isArray(units)) return result;
-  const format = (value: unknown): string | null => {
-    if (typeof value !== 'string') return null;
-    const m = value.match(/^(\d{1,2}):(\d{2})/);
-    return m && Number(m[1]) < 24 && Number(m[2]) < 60 ? `${m[1].padStart(2, '0')}:${m[2]}` : null;
-  };
-  for (const item of units) {
-    const n = Number(item.index ?? item.unitIndex ?? item.unit);
-    const start = format(item.startTime ?? item.beginTime);
-    const end = format(item.endTime ?? item.finishTime);
-    if (Number.isInteger(n) && n >= 1 && n <= 30 && start && end && start < end) {
-      result[n] = { start, end };
-    }
-  }
-  return result;
-}
-
 /** 解析「第7-8节」「第七节~第八节」「1-2节」「第3节」等节次写法 */
 function parseUnitRange(text: string): { startUnit?: number; endUnit?: number } {
   const toInt = (s?: string): number | undefined =>
@@ -199,6 +177,7 @@ export function parseCourseTableJson(raw: string): CourseTableData {
         scheduleText: timeText,
         timeText,
         placeText,
+        campus: /雁塔/.test(seg) ? 'yanta' : /草堂/.test(seg) ? 'caotang' : undefined,
         teacher,
         weekText: weekMatch ? weekMatch[1] : '',
         dayOfWeek: dayMatch ? WEEK_CN[dayMatch[1]] : undefined,

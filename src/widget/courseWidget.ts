@@ -1,7 +1,8 @@
 import type { CourseTableData } from '../types';
-import { fetchBestCourseTable, fetchCourseUnitTimes } from '../api/data';
+import { fetchBestCourseTable } from '../api/data';
 import { inWeek } from '../api/parsers';
 import { updateCourseWidget, type CourseWidgetPayload, type WidgetCourseSlot, type WidgetDay } from '../../modules/course-widget';
+import { campusForLesson, dominantCampus, unitTime } from './classTimes';
 
 const WEEK_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
@@ -16,17 +17,16 @@ function fmtDate(d: Date): string {
 
 const SLOT_COUNT = 3;
 
-type UnitTimes = Record<number, { start: string; end: string }>;
-
 function dateKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-function dayCourses(table: CourseTableData, date: Date, week: number, times: UnitTimes): WidgetCourseSlot[] {
+function dayCourses(table: CourseTableData, date: Date, week: number): WidgetCourseSlot[] {
   const day = dayOfWeek(date);
   const lessons = table.lessons
     .filter((l) => l.dayOfWeek === day && inWeek(l.weekText, week))
     .sort((a, b) => (a.startUnit ?? 99) - (b.startUnit ?? 99));
+  const fallbackCampus = dominantCampus(table.lessons);
   return lessons.map((l) => {
     const tag =
       l.startUnit && l.endUnit && l.endUnit !== l.startUnit
@@ -34,7 +34,7 @@ function dayCourses(table: CourseTableData, date: Date, week: number, times: Uni
         : l.startUnit
           ? `第${l.startUnit}节`
           : '';
-    const endTime = times[l.endUnit ?? l.startUnit ?? 0]?.end;
+    const endTime = unitTime(campusForLesson(l) ?? fallbackCampus, l.endUnit ?? l.startUnit ?? 0, date)?.end;
     const match = endTime?.match(/^(\d{2}):(\d{2})$/);
     const endAt = match
       ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), Number(match[1]), Number(match[2])).getTime()
@@ -43,7 +43,7 @@ function dayCourses(table: CourseTableData, date: Date, week: number, times: Uni
   });
 }
 
-export function buildCourseWidgetPayload(table: CourseTableData, times: UnitTimes = {}, now = new Date()): CourseWidgetPayload {
+export function buildCourseWidgetPayload(table: CourseTableData, now = new Date()): CourseWidgetPayload {
   const week = Math.max(1, table.currentWeek || 1);
   const today = dayOfWeek(now);
   const tomorrowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
@@ -51,7 +51,7 @@ export function buildCourseWidgetPayload(table: CourseTableData, times: UnitTime
   const days: WidgetDay[] = Array.from({ length: 8 }, (_, offset) => {
     const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
     const dayWeek = week + Math.floor((today - 1 + offset) / 7);
-    return { date: dateKey(date), week: dayWeek, slots: dayCourses(table, date, dayWeek, times) };
+    return { date: dateKey(date), week: dayWeek, slots: dayCourses(table, date, dayWeek) };
   });
   const left = days[0].slots.filter((slot) => !slot.endAt || slot.endAt > now.getTime());
   const right = days[1].slots;
@@ -70,9 +70,8 @@ export function buildCourseWidgetPayload(table: CourseTableData, times: UnitTime
   };
 }
 
-export async function refreshCourseWidget(table: CourseTableData): Promise<void> {
-  const times = await fetchCourseUnitTimes(table.semesterId).catch(() => ({}));
-  return updateCourseWidget(buildCourseWidgetPayload(table, times));
+export function refreshCourseWidget(table: CourseTableData): Promise<void> {
+  return updateCourseWidget(buildCourseWidgetPayload(table));
 }
 
 let lastAuto = 0;

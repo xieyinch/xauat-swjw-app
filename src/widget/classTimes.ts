@@ -56,3 +56,17 @@ export function unitTime(campus: Campus | undefined, unit: number, date: Date): 
   }
   return undefined;
 }
+
+/** 返回课程的实际起止时间；无法识别校区或节次时返回 undefined。 */
+export function lessonTimeRange(
+  lesson: CourseLesson,
+  fallbackCampus: Campus | undefined,
+  date: Date,
+): UnitTime | undefined {
+  const campus = campusForLesson(lesson) ?? fallbackCampus;
+  const startUnit = lesson.startUnit ?? 0;
+  const endUnit = lesson.endUnit ?? startUnit;
+  const start = unitTime(campus, startUnit, date)?.start;
+  const end = unitTime(campus, endUnit, date)?.end;
+  return start && end ? { start, end } : undefined;
+}

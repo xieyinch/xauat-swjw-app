@@ -21,7 +21,7 @@ import { campusForLesson, dominantCampus, unitTime } from '../widget/classTimes'
 
 const WEEK_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
-const TIME_COL = 58;
+const TIME_COL = 52;
 const HEADER_H = 40;
 const ROW_H = 66;
 const GAP = 3;
@@ -54,7 +54,8 @@ interface Props {
 
 export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
   const { width: winW } = useWindowDimensions();
-  const colW = Math.max((winW - TIME_COL) / 7, 54);
+  // 七天按可用宽度平分，避免最小列宽导致周日被挤出屏幕。
+  const colW = Math.max(0, (winW - TIME_COL) / 7);
 
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [semesterId, setSemesterId] = useState<number | null>(null);
@@ -308,8 +309,7 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
           }
         >
           {currentSemesterName ? <Text style={styles.semesterName}>{currentSemesterName}</Text> : null}
-          <View style={{ height: HEADER_H + gridH }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ width: gridW, height: HEADER_H + gridH }}>
+          <View style={{ height: HEADER_H + gridH, width: gridW }}>
               <View style={{ width: gridW, height: HEADER_H + gridH }}>
                 <View style={[styles.headerRow, { width: gridW, paddingLeft: TIME_COL }]}>
                   {WEEK_LABELS.map((label, idx) => (
@@ -349,7 +349,7 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
                         },
                       ]}
                     >
-                      <Text style={styles.blockName} numberOfLines={4}>
+                      <Text style={[styles.blockName, colW < 44 && styles.blockNameCompact]} numberOfLines={4}>
                         {b.nameZh}
                       </Text>
                       {b.placeText ? <Text style={styles.blockPlace}>@{b.placeText}</Text> : null}
@@ -361,7 +361,6 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
                   );
                 })}
               </View>
-            </ScrollView>
 
             <View style={[styles.timeCol, { width: TIME_COL, height: gridH, top: HEADER_H }]} pointerEvents="none">
               {Array.from({ length: totalUnits }).map((_, i) => (
@@ -451,7 +450,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  headerCell: { flex: 1, textAlign: 'center', fontSize: 13, fontWeight: '600', color: colors.text },
+  headerCell: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: colors.text },
   grid: {
     position: 'absolute',
     backgroundColor: colors.background,
@@ -480,7 +479,8 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     justifyContent: 'flex-start',
   },
-  blockName: { fontSize: 12, fontWeight: '700', color: '#fff', lineHeight: 15 },
+  blockName: { fontSize: 11, fontWeight: '700', color: '#fff', lineHeight: 14 },
+  blockNameCompact: { fontSize: 9, lineHeight: 11 },
   blockPlace: { fontSize: 10, color: 'rgba(255,255,255,0.95)', marginTop: 2 },
   blockParity: { fontSize: 9, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
   timeCol: {

@@ -2,7 +2,7 @@ import type { CourseTableData } from '../types';
 import { fetchBestCourseTable } from '../api/data';
 import { inWeek } from '../api/parsers';
 import { updateCourseWidget, type CourseWidgetPayload, type WidgetCourseSlot, type WidgetDay } from '../../modules/course-widget';
-import { campusForLesson, dominantCampus, unitTime } from './classTimes';
+import { dominantCampus, lessonTimeRange } from './classTimes';
 
 const WEEK_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
@@ -28,18 +28,13 @@ function dayCourses(table: CourseTableData, date: Date, week: number): WidgetCou
     .sort((a, b) => (a.startUnit ?? 99) - (b.startUnit ?? 99));
   const fallbackCampus = dominantCampus(table.lessons);
   return lessons.map((l) => {
-    const tag =
-      l.startUnit && l.endUnit && l.endUnit !== l.startUnit
-        ? `${l.startUnit}-${l.endUnit}节`
-        : l.startUnit
-          ? `第${l.startUnit}节`
-          : '';
-    const endTime = unitTime(campusForLesson(l) ?? fallbackCampus, l.endUnit ?? l.startUnit ?? 0, date)?.end;
-    const match = endTime?.match(/^(\d{2}):(\d{2})$/);
+    const range = lessonTimeRange(l, fallbackCampus, date);
+    const match = range?.end.match(/^(\d{2}):(\d{2})$/);
     const endAt = match
       ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), Number(match[1]), Number(match[2])).getTime()
       : undefined;
-    return { head: tag ? `${tag} ${l.nameZh}` : l.nameZh, sub: l.placeText || l.timeText || '', endAt };
+    const details = [range ? `${range.start}–${range.end}` : '', l.placeText].filter(Boolean).join(' · ');
+    return { head: l.nameZh, sub: details || l.timeText || '', endAt };
   });
 }
 

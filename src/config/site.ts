@@ -1,6 +1,10 @@
+// Android Chrome's reduced UA format omits the WebView-specific wv and Version/4.0 tokens.
+export const ANDROID_CHROME_USER_AGENT =
+  'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Mobile Safari/537.36';
+
 export const SITE = {
-  /** 统一身份认证登录页（CAS，明文 HTTP） */
-  authLogin: 'http://authserver.xauat.edu.cn/authserver/login',
+  /** 统一身份认证登录页（CAS） */
+  authLogin: 'https://authserver.xauat.edu.cn/authserver/login',
   /** 教务门户 SSO 回调地址 */
   ssoService: 'https://swjw.xauat.edu.cn/student/sso/login',
   /** 教务门户根 */

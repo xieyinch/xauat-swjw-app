@@ -3,7 +3,8 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 const KEY_USER = 'xauat:user';
-const KEY_CREDENTIALS = 'xauat:credentials';
+const KEY_CREDENTIALS = 'xauat.credentials';
+const LEGACY_KEY_CREDENTIALS = 'xauat:credentials';
 
 export interface StoredUser {
   stdNo: string;
@@ -68,11 +69,15 @@ export async function clearUser() {
 }
 
 export async function saveCredentials(creds: StoredCredentials) {
-  await storeSet(KEY_CREDENTIALS, JSON.stringify(creds));
+  if (Platform.OS === 'web') return;
+  await SecureStore.setItemAsync(KEY_CREDENTIALS, JSON.stringify(creds));
+  await AsyncStorage.removeItem(LEGACY_KEY_CREDENTIALS);
 }
 
 export async function loadCredentials(): Promise<StoredCredentials | null> {
-  const raw = await storeGet(KEY_CREDENTIALS);
+  if (Platform.OS === 'web') return null;
+  const raw = await SecureStore.getItemAsync(KEY_CREDENTIALS).catch(() => null)
+    ?? await AsyncStorage.getItem(LEGACY_KEY_CREDENTIALS);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as StoredCredentials;
@@ -82,5 +87,8 @@ export async function loadCredentials(): Promise<StoredCredentials | null> {
 }
 
 export async function clearCredentials() {
-  await storeDelete(KEY_CREDENTIALS);
+  await Promise.all([
+    ...(Platform.OS === 'web' ? [] : [SecureStore.deleteItemAsync(KEY_CREDENTIALS)]),
+    AsyncStorage.removeItem(LEGACY_KEY_CREDENTIALS),
+  ]);
 }

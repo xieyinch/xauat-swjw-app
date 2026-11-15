@@ -3,6 +3,8 @@ import { Platform } from 'react-native';
 import { WebView, WebViewNavigation } from 'react-native-webview';
 import type { WebViewHttpErrorEvent, WebViewProgressEvent } from 'react-native-webview/lib/WebViewTypes';
 
+import { ANDROID_CHROME_USER_AGENT } from '../config/site';
+
 export interface PortalWebViewHandle {
   reload: () => void;
   goBack: () => void;
@@ -76,7 +78,7 @@ export const PortalWebView = forwardRef<PortalWebViewHandle, PortalWebViewProps>
         ref={webViewRef}
         source={{ uri }}
         style={{ flex: 1, backgroundColor: '#fff' }}
-        userAgent={userAgent}
+        userAgent={userAgent ?? (requiresLogin && Platform.OS === 'android' ? ANDROID_CHROME_USER_AGENT : undefined)}
         javaScriptEnabled
         domStorageEnabled
         thirdPartyCookiesEnabled

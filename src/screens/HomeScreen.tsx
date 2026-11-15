@@ -25,7 +25,7 @@ const WEEK_LABELS: Record<number, string> = { 1: '周一', 2: '周二', 3: '周�
 export function HomeScreen({ user, onNavigate, onSessionExpired, onLogout }: Props) {
   const [student, setStudent] = useState<StudentInfo | null>(null);
   const [semesterName, setSemesterName] = useState('');
-  const [semesterLessons, setSemesterLessons] = useState<CourseLesson[]>([]);
+  const [fallbackCampus, setFallbackCampus] = useState<ReturnType<typeof dominantCampus>>(undefined);
   const [todayLessons, setTodayLessons] = useState<CourseLesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,11 +40,11 @@ export function HomeScreen({ user, onNavigate, onSessionExpired, onLogout }: Pro
       const table = best?.table ?? null;
       if (table) {
         refreshCourseWidget(table);
-        setSemesterLessons(table.lessons);
+        setFallbackCampus(dominantCampus(table.lessons));
         const day = new Date().getDay() === 0 ? 7 : new Date().getDay();
         setTodayLessons(table.lessons.filter((l) => l.dayOfWeek === day && inWeek(l.weekText, Math.max(1, table.currentWeek))));
       } else {
-        setSemesterLessons([]);
+        setFallbackCampus(undefined);
         setTodayLessons([]);
       }
     } catch (e) {
@@ -64,7 +64,6 @@ export function HomeScreen({ user, onNavigate, onSessionExpired, onLogout }: Pro
     return day === 0 ? 7 : day;
   }, []);
   const todayDate = new Date();
-  const fallbackCampus = dominantCampus(semesterLessons);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>

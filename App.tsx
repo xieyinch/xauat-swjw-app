@@ -42,7 +42,12 @@ function resetPortalData() {
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>('boot');
-  const [activeKey, setActiveKey] = useState(TABS[0].key);
+  // Keep the current tab and one recently used tab mounted for quick back-and-forth.
+  const [recentTabs, setRecentTabs] = useState(() => [TABS[0].key]);
+  const activeKey = recentTabs[0];
+  const setActiveKey = useCallback((key: string) => {
+    setRecentTabs(current => current[0] === key ? current : [key, current[0]]);
+  }, []);
   const [user, setUser] = useState<StoredUser | null>(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -58,7 +63,6 @@ export default function App() {
   const authRun = useRef(0);
   const authPending = useRef(false);
   const lastAutoLoginRef = useRef(0);
-  const visitedTabsRef = useRef(new Set(['home']));
   const [sessionEpoch, setSessionEpoch] = useState(0);
 
   const enterPhase = useCallback((next: Phase) => {
@@ -77,7 +81,7 @@ export default function App() {
     setPassword('');
     setLoginError(null);
     resetPortalData();
-    visitedTabsRef.current = new Set(['home']);
+    setRecentTabs(current => [current[0]]);
     setSessionEpoch(value => value + 1);
     enterPhase('main');
   }, [enterPhase]);
@@ -118,6 +122,11 @@ export default function App() {
     setLoginError(null);
     setSubmitting(true);
     setFunctionPage(null);
+    setSportsVisible(false);
+    setLibraryPage(null);
+    setNoticesVisible(false);
+    setNoticeDetail(null);
+    setRecentTabs([TABS[0].key]);
     enterPhase('login');
     const results = await Promise.allSettled([clearUser(), clearCredentials(), clearPortalCookies()]);
     if (results.some(result => result.status === 'rejected')) {
@@ -176,9 +185,12 @@ export default function App() {
     const urlSub = Linking.addEventListener('url', event => openByUrl(event.url));
     const appSub = AppState.addEventListener('change', status => {
       if (status === 'active' && phaseRef.current === 'main') void autoRefreshCourseWidget();
+      if (status === 'background') {
+        setRecentTabs(current => current.length === 1 ? current : [current[0]]);
+      }
     });
     return () => { mounted = false; urlSub.remove(); appSub.remove(); };
-  }, []);
+  }, [setActiveKey]);
 
   const handleSchoolLoginLoad = useCallback((url: string) => {
     if (phaseRef.current !== 'school-login' || authPending.current) return;
@@ -211,9 +223,8 @@ export default function App() {
     else if (key === 'library-reserve') setLibraryPage({ title: '图书馆预约', uri: LIBRARY_RESERVE_URL });
     else if (key === 'my-library') setLibraryPage({ title: '我的图书馆', uri: MY_LIBRARY_URL });
     else setActiveKey(key);
-  }, []);
+  }, [setActiveKey]);
 
-  visitedTabsRef.current.add(activeKey);
   const renderTab = (key: string) => {
     switch (key) {
       case 'schedule': return <CourseTableScreen onSessionExpired={handleSessionExpired} />;
@@ -253,6 +264,6 @@ export default function App() {
        onLoadEnd={event => handleSchoolLoginLoad(event.nativeEvent.url)}
      />
    </View>
- ):<View style={styles.main}><View style={styles.header}><Text style={styles.headerTitle}>{TABS.find(t=>t.key===activeKey)?.title??''}</Text><TouchableOpacity style={styles.headerBtn} onPress={handleLogout}><Ionicons name="log-out-outline" size={20} color={colors.textSecondary}/></TouchableOpacity></View>{themeInitDiagnostics.state&&!themeInitDiagnostics.state.startsWith('ok')?<View style={styles.diagBar}><Text style={styles.diagText}>动态取色诊断:{themeInitDiagnostics.state}</Text></View>:null}<View style={styles.content} key={sessionEpoch}>{TABS.map(tab=>visitedTabsRef.current.has(tab.key)?<View key={tab.key} style={[styles.tabPage,tab.key!==activeKey&&styles.tabHidden]} pointerEvents={tab.key===activeKey?'auto':'none'}>{renderTab(tab.key)}</View>:null)}</View><BottomTabBar activeKey={activeKey} onSelect={setActiveKey}/></View>}{sportsVisible?<View style={StyleSheet.absoluteFill}><SportsScreen onClose={()=>setSportsVisible(false)}/></View>:null}{libraryPage?<View style={StyleSheet.absoluteFill}><LibraryScreen title={libraryPage.title} uri={libraryPage.uri} showReservationRules={libraryPage.uri === LIBRARY_RESERVE_URL} onClose={()=>setLibraryPage(null)}/></View>:null}{noticesVisible?<View style={StyleSheet.absoluteFill}><View style={styles.overlayHeader}><TouchableOpacity onPress={()=>setNoticesVisible(false)} hitSlop={{top:8,bottom:8,left:8,right:8}}><Ionicons name="close" size={24} color={colors.text}/></TouchableOpacity><Text style={styles.overlayTitle}>通知公告</Text><View style={styles.overlaySpacer}/></View><NoticeScreen onOpenNotice={setNoticeDetail}/></View>:null}{functionPage?<View style={StyleSheet.absoluteFill}><FunctionPageScreen fn={functionPage} onClose={()=>setFunctionPage(null)} onSessionExpired={handleSessionExpired}/></View>:null}{noticeDetail?<View style={StyleSheet.absoluteFill}><NoticeDetailScreen url={noticeDetail.url} title={noticeDetail.title} onClose={()=>setNoticeDetail(null)}/></View>:null}</SafeAreaView></SafeAreaProvider>;
+ ):<View style={styles.main}><View style={styles.header}><Text style={styles.headerTitle}>{TABS.find(t=>t.key===activeKey)?.title??''}</Text><TouchableOpacity style={styles.headerBtn} onPress={handleLogout}><Ionicons name="log-out-outline" size={20} color={colors.textSecondary}/></TouchableOpacity></View>{themeInitDiagnostics.state&&!themeInitDiagnostics.state.startsWith('ok')?<View style={styles.diagBar}><Text style={styles.diagText}>动态取色诊断:{themeInitDiagnostics.state}</Text></View>:null}<View style={styles.content} key={sessionEpoch}>{TABS.map(tab=>recentTabs.includes(tab.key)?<View key={tab.key} style={[styles.tabPage,tab.key!==activeKey&&styles.tabHidden]} pointerEvents={tab.key===activeKey?'auto':'none'}>{renderTab(tab.key)}</View>:null)}</View><BottomTabBar activeKey={activeKey} onSelect={setActiveKey}/></View>}{sportsVisible?<View style={StyleSheet.absoluteFill}><SportsScreen onClose={()=>setSportsVisible(false)}/></View>:null}{libraryPage?<View style={StyleSheet.absoluteFill}><LibraryScreen title={libraryPage.title} uri={libraryPage.uri} showReservationRules={libraryPage.uri === LIBRARY_RESERVE_URL} onClose={()=>setLibraryPage(null)}/></View>:null}{noticesVisible?<View style={StyleSheet.absoluteFill}><View style={styles.overlayHeader}><TouchableOpacity onPress={()=>setNoticesVisible(false)} hitSlop={{top:8,bottom:8,left:8,right:8}}><Ionicons name="close" size={24} color={colors.text}/></TouchableOpacity><Text style={styles.overlayTitle}>通知公告</Text><View style={styles.overlaySpacer}/></View><NoticeScreen onOpenNotice={setNoticeDetail}/></View>:null}{functionPage?<View style={StyleSheet.absoluteFill}><FunctionPageScreen fn={functionPage} onClose={()=>setFunctionPage(null)} onSessionExpired={handleSessionExpired}/></View>:null}{noticeDetail?<View style={StyleSheet.absoluteFill}><NoticeDetailScreen url={noticeDetail.url} title={noticeDetail.title} onClose={()=>setNoticeDetail(null)}/></View>:null}</SafeAreaView></SafeAreaProvider>;
 }
 const styles=StyleSheet.create({safeArea:{flex:1,backgroundColor:colors.primary},bootView:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:colors.background,gap:spacing.md},bootLogo:{width:72,height:72,borderRadius:36,backgroundColor:colors.primary,alignItems:'center',justifyContent:'center'},bootName:{fontSize:18,fontWeight:'700',color:colors.text},bootSpinner:{marginTop:spacing.sm},loggingWrap:{flex:1,backgroundColor:colors.background},loggingHeader:{flexDirection:'row',alignItems:'center',paddingHorizontal:spacing.md,paddingVertical:spacing.sm,borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:colors.border},loggingTitle:{flex:1,textAlign:'center',fontSize:15,fontWeight:'600',color:colors.text},loggingHeaderSpacer:{width:24},main:{flex:1,backgroundColor:colors.background},header:{height:44,flexDirection:'row',alignItems:'center',justifyContent:'center',backgroundColor:colors.background,borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:colors.border},headerTitle:{fontSize:16,fontWeight:'600',color:colors.text},headerBtn:{position:'absolute',right:spacing.md,padding:spacing.xs},content:{flex:1},tabPage:{flex:1},tabHidden:{display:'none'},diagBar:{backgroundColor:colors.danger,paddingHorizontal:spacing.md,paddingVertical:2},diagText:{color:'#fff',fontSize:10},schoolWebView:{flex:1,backgroundColor:'#fff'},overlayHeader:{height:44,flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:spacing.md,borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:colors.border},overlayTitle:{fontSize:16,fontWeight:'600',color:colors.text},overlaySpacer:{width:24}});

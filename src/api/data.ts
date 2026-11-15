@@ -19,10 +19,18 @@ function guardSession(raw: string): string {
   return raw;
 }
 
-/** 从课表页面解析可选学期列表 */
-export async function fetchSemesters(): Promise<Semester[]> {
-  const raw = guardSession(await portalRequest(API.courseTablePage));
-  return parseSemestersFromCourseTable(raw);
+let semestersPending: Promise<Semester[]> | null = null;
+const courseTablesPending = new Map<number, Promise<CourseTableData>>();
+
+/** 只共享同时发生的请求，结束后释放结果。 */
+export function fetchSemesters(): Promise<Semester[]> {
+  if (!semestersPending) {
+    const request = portalRequest(API.courseTablePage)
+      .then(raw => parseSemestersFromCourseTable(guardSession(raw)))
+      .finally(() => { if (semestersPending === request) semestersPending = null; });
+    semestersPending = request;
+  }
+  return semestersPending;
 }
 
 /** 推断当前学期：优先取今天落在区间内的学期；空档期取「即将开始」或「最近结束」的学期，避免选到过于久远的新学期 */
@@ -133,6 +141,8 @@ export function getStudentInfoCached(): Promise<StudentInfo> {
 
 export function clearStudentInfoCache() {
   studentInfoPromise = null;
+  semestersPending = null;
+  courseTablesPending.clear();
 }
 
 /** 课表接口原始返回（调试用） */
@@ -142,8 +152,16 @@ export async function fetchCourseTableRaw(semesterId: number): Promise<string> {
   );
 }
 
-export async function fetchCourseTable(semesterId: number): Promise<CourseTableData> {
-  return parseCourseTableJson(await fetchCourseTableRaw(semesterId));
+export function fetchCourseTable(semesterId: number): Promise<CourseTableData> {
+  const pending = courseTablesPending.get(semesterId);
+  if (pending) return pending;
+  const request = fetchCourseTableRaw(semesterId)
+    .then(parseCourseTableJson)
+    .finally(() => {
+      if (courseTablesPending.get(semesterId) === request) courseTablesPending.delete(semesterId);
+    });
+  courseTablesPending.set(semesterId, request);
+  return request;
 }
 
 /** 取「当前/最近且有课程」的学期课表：优先当前学期，空窗期自动回退到最近有课学期 */

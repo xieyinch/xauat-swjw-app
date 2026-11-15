@@ -1,8 +1,6 @@
-import CookieManager from '@react-native-cookies/cookies';
 import { fetch } from 'expo/fetch';
-import { Platform } from 'react-native';
 import { ANDROID_CHROME_USER_AGENT, SITE } from '../config/site';
-import { SessionExpiredError } from './data';
+import { isLoginPageText, isPortalLoginUrl, schoolRequest, SessionExpiredError } from './portalClient';
 
 export const TIMELY_EVALUATION_PATH = '/student/for-std/evaluation/timely';
 export const SUMMATIVE_EVALUATION_PATH = '/student/for-std/evaluation/summative';
@@ -89,31 +87,69 @@ export async function evaluationRequest<T>(path: string, token?: string, body?: 
   return payload.data;
 }
 
-export async function fetchEvaluationSession(path = TIMELY_EVALUATION_PATH) {
-  const entry = SITE.swjw + path;
-  const cookies = await CookieManager.get(entry, Platform.OS === 'ios');
-  const cookieHeader = Object.values(cookies).map(({ name, value }) => `${name}=${value}`).join('; ');
-  if (!cookieHeader) throw new SessionExpiredError();
-
-  // Read the same-origin SSO redirect without opening or executing the evaluation frontend.
-  const response = await request(entry, {
-    headers: { Cookie: cookieHeader, 'User-Agent': ANDROID_CHROME_USER_AGENT },
-  });
-  const location = response.headers.get('location');
-  if (response.status === 401) throw new SessionExpiredError();
-  if (!location) throw new Error('学校评教入口未返回登录跳转');
-
-  const redirect = new URL(location, entry);
-  if (redirect.hostname === new URL(SITE.authLogin).hostname || redirect.pathname === '/student/login') {
-    throw new SessionExpiredError();
-  }
+function evaluationTicket(target: URL) {
   const prefix = '#/sso-login?';
-  if (redirect.origin !== SITE.swjw || !/^\/evaluation-student-frontend\/?$/.test(redirect.pathname) || !redirect.hash.startsWith(prefix)) {
-    throw new Error('学校评教登录跳转地址有变化');
+  if (target.origin !== SITE.swjw || !/^\/evaluation-student-frontend\/?$/.test(target.pathname) || !target.hash.startsWith(prefix)) {
+    return null;
   }
-  const ticket = new URLSearchParams(redirect.hash.slice(prefix.length)).get('token');
-  if (!ticket) throw new Error('学校评教入口未返回登录凭证');
+  return new URLSearchParams(target.hash.slice(prefix.length)).get('token');
+}
 
+function ticketFromLandingPage(body: string, entry: URL) {
+  // A JS or meta redirect can be returned as HTML. Extract only a literal evaluation URL.
+  const normalized = body
+    .replace(/&amp;|&#0*38;|&#x0*26;/gi, '&')
+    .replace(/\\(?:u0026|x26)/gi, '&')
+    .replace(/\\\//g, '/');
+  const destinations = normalized.matchAll(/(?:https?:)?(?:\/\/[^\s"'<>]+?)?\/evaluation-student-frontend\/?#\/sso-login\?[^\s"'<>]+/gi);
+  for (const match of destinations) {
+    try {
+      const ticket = evaluationTicket(new URL(match[0], entry));
+      if (ticket) return ticket;
+    } catch {
+      // An invalid candidate is not a login token.
+    }
+  }
+  return null;
+}
+
+async function fetchEvaluationTicket(entry: URL) {
+  let current = entry;
+  for (let redirects = 0; redirects < 5; redirects++) {
+    const response = await schoolRequest(current, {
+      headers: {
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        Referer: SITE.portal,
+      },
+    }, async result => ({
+      status: result.status,
+      ok: result.ok,
+      location: result.headers.get('location'),
+      body: await result.text(),
+    }));
+    if (response.status === 401 || isLoginPageText(response.body)) throw new SessionExpiredError();
+    if (response.status >= 300 && response.status < 400 && response.location) {
+      const next = new URL(response.location, current);
+      if (isPortalLoginUrl(next)) throw new SessionExpiredError();
+      const ticket = evaluationTicket(next);
+      if (ticket) return ticket;
+      // Follow only school portal intermediaries. Never send school cookies to outside URLs.
+      if (next.origin !== SITE.swjw || !next.pathname.startsWith('/student/')) {
+        throw new Error('学校评教登录跳转地址有变化');
+      }
+      current = next;
+      continue;
+    }
+    if (!response.ok) throw new Error(`学校评教入口请求失败（HTTP ${response.status}）`);
+    const ticket = ticketFromLandingPage(response.body, current);
+    if (ticket) return ticket;
+    throw new Error('学校评教入口未返回登录凭证，请重试或打开教务网页');
+  }
+  throw new Error('学校评教登录跳转次数过多');
+}
+
+export async function fetchEvaluationSession(path = TIMELY_EVALUATION_PATH) {
+  const ticket = await fetchEvaluationTicket(new URL(path, SITE.swjw));
   const account = await evaluationRequest<{ token: string }>('/evaluation/account/update-account-by-token?' + new URLSearchParams({ token: ticket }), undefined, undefined, true);
   if (!account?.token) throw new Error('学校评教系统未返回会话');
   return account.token;

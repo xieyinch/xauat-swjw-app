@@ -14,6 +14,7 @@ import { RoomFreeScreen } from '../screens/functions/RoomFreeScreen';
 import { StudentInfoScreen } from '../screens/functions/StudentInfoScreen';
 import { TutorScreen } from '../screens/functions/TutorScreen';
 import { TutorSelectResultScreen } from '../screens/functions/TutorSelectResultScreen';
+import { TimelyEvaluationScreen } from '../screens/functions/TimelyEvaluationScreen';
 import { TutorEvaluationScreen } from '../screens/functions/TutorEvaluationScreen';
 import { DegreeApplyScreen } from '../screens/functions/DegreeApplyScreen';
 import { TutorChangeApplyScreen } from '../screens/functions/TutorChangeApplyScreen';
@@ -54,6 +55,7 @@ export const NATIVE_FUNCTIONS: Record<string, React.ComponentType<NativeFunction
   'for-std-std-tutor-select-result:menu': TutorSelectResultScreen,
   'for-std-my-evaluation-result:menu': EvaluationResultScreen,
   'for-std-guidance-record:menu': GuidanceRecordScreen,
+  'for-std-evaluation-timely:menu': TimelyEvaluationScreen,
   'for-std-evaluation-index-result:menu': TutorEvaluationScreen,
   'for-std-degree-apply:menu': DegreeApplyScreen,
   'for-std-tutor-change-apply:menu': TutorChangeApplyScreen,
@@ -86,6 +88,7 @@ const HREF_TO_CODE: Record<string, string> = {
   '/student/for-std/select/std-tutor-select-result': 'for-std-std-tutor-select-result:menu',
   '/student/for-std/my-evaluation-result': 'for-std-my-evaluation-result:menu',
   '/student/for-std/guidance-record': 'for-std-guidance-record:menu',
+  '/student/for-std/evaluation/timely': 'for-std-evaluation-timely:menu',
   '/student/for-std/evaluation-index-result': 'for-std-evaluation-index-result:menu',
   '/student/for-std/degree-apply': 'for-std-degree-apply:menu',
   '/student/for-std/tutor-change-apply': 'for-std-tutor-change-apply:menu',

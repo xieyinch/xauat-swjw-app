@@ -4,7 +4,7 @@ import { SessionExpiredError } from '../../api/data';
 import {
   buildEvaluationSubmission, fetchEvaluationHistory, fetchEvaluationResult, fetchEvaluationSurvey, fetchEvaluationTasks, submitEvaluation,
   surveyQuestions, TIMELY_EVALUATION_PATH,
-  type EvaluationAnswer, type EvaluationResult, type EvaluationTask, type SurveyQuestion,
+  type EvaluationAnswer, type EvaluationResult, type EvaluationSurvey, type EvaluationTask, type SurveyQuestion,
 } from '../../api/timelyEvaluation';
 import { FunctionShell } from '../../components/FunctionShell';
 import { ListContainer } from '../../components/ListContainer';
@@ -99,13 +99,27 @@ function QuestionInput({ question, answer, change }: {
 
 type EvaluationSession = Awaited<ReturnType<typeof fetchEvaluationTasks>>;
 
-function EvaluationForm({ task, session, onBack, onDone, onSessionExpired, openWebPage }: {
-  task: EvaluationTask; session: EvaluationSession; onBack: () => void; onDone: () => void;
-} & Pick<NativeFunctionProps, 'onSessionExpired' | 'openWebPage'>) {
-  const surveyId = task.surveies[task.surveies.length - 1].id;
+export function EvaluationForm({
+  title, courseName, teacherName, surveyId, token, permissions, permissionPrefix,
+  buildForm, submitForm, onBack, onDone, onSessionExpired, onOpenWeb,
+}: {
+  title: string;
+  courseName: string;
+  teacherName: string;
+  surveyId: number | string;
+  token: string;
+  permissions: string[];
+  permissionPrefix: 'timely-evaluation' | 'summative-evaluation';
+  buildForm: (survey: EvaluationSurvey, answers: Record<string, EvaluationAnswer>, anonymity: boolean) => FormData;
+  submitForm: (form: FormData, anonymity: boolean) => Promise<unknown>;
+  onBack: () => void;
+  onDone: () => void;
+  onSessionExpired: () => void;
+  onOpenWeb?: () => void;
+}) {
   const survey = useAsyncData({
-    loader: () => fetchEvaluationSurvey(session.token, surveyId),
-    deps: [session.token, surveyId],
+    loader: () => fetchEvaluationSurvey(token, surveyId),
+    deps: [token, surveyId],
   });
   const [answers, setAnswers] = useState<Record<string, EvaluationAnswer>>({});
   const sending = useRef(false);
@@ -117,19 +131,19 @@ function EvaluationForm({ task, session, onBack, onDone, onSessionExpired, openW
     if (!survey.data || sending.current || checkRequired) return;
     let form: FormData;
     try {
-      form = buildEvaluationSubmission(task, surveyId, survey.data, answers, anonymity);
+      form = buildForm(survey.data, answers, anonymity);
     } catch (error) {
       Alert.alert('请检查问卷', error instanceof Error ? error.message : '问卷无法提交');
       return;
     }
-    Alert.alert('确认提交评教？', task.lesson.course.nameZh, [
+    Alert.alert('确认提交评教？', courseName, [
       { text: '继续填写', style: 'cancel' },
       { text: '提交', onPress: async () => {
         if (sending.current) return;
         sending.current = true;
         setBusy(true);
         try {
-          await submitEvaluation(session.token, form);
+          await submitForm(form, anonymity);
           onDone();
         } catch (error) {
           setCheckRequired(true);
@@ -144,11 +158,11 @@ function EvaluationForm({ task, session, onBack, onDone, onSessionExpired, openW
   }
 
   return (
-    <FunctionShell title="即时性评价问卷" onClose={() => { if (!sending.current) onBack(); }}>
+    <FunctionShell title={title} onClose={() => { if (!sending.current) onBack(); }}>
       <ListContainer loading={survey.loading || survey.refreshing} error={survey.error} onRetry={survey.retry}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.heading}>{survey.data?.nameZh}</Text>
-          <Text style={styles.muted}>{task.lesson.course.nameZh} · {task.evaluatedTeacher.person.nameZh}</Text>
+          <Text style={styles.muted}>{courseName} · {teacherName}</Text>
           {!!survey.data?.description && <Text style={styles.text}>{survey.data.description}</Text>}
           {questions.map(question => (
             <QuestionInput
@@ -159,11 +173,11 @@ function EvaluationForm({ task, session, onBack, onDone, onSessionExpired, openW
           {checkRequired ? (
             <Choice label="返回并刷新待评列表" onPress={onBack} />
           ) : questions.some(question => question.type === 'upload') ? (
-            <Choice label="打开教务网页" onPress={() => openWebPage?.('学生即时性评价', TIMELY_EVALUATION_PATH)} />
+            onOpenWeb && <Choice label="打开教务网页" onPress={onOpenWeb} />
           ) : questions.some(question => question.type !== 'header') && (
             <View style={styles.choices}>
-              {session.permissions.includes('timely-evaluation:submit') && <Choice label={busy ? '提交中…' : '提交'} onPress={() => confirm(false)} />}
-              {session.permissions.includes('timely-evaluation:anonymity-submit') && <Choice label={busy ? '提交中…' : '匿名提交'} onPress={() => confirm(true)} />}
+              {permissions.includes(permissionPrefix + ':submit') && <Choice label={busy ? '提交中…' : '提交'} onPress={() => confirm(false)} />}
+              {permissions.includes(permissionPrefix + ':anonymity-submit') && <Choice label={busy ? '提交中…' : '匿名提交'} onPress={() => confirm(true)} />}
             </View>
           )}
         </ScrollView>
@@ -172,10 +186,11 @@ function EvaluationForm({ task, session, onBack, onDone, onSessionExpired, openW
   );
 }
 
-function EvaluationResultScreen({ token, record, onClose }: {
-  token: string; record: EvaluationResult; onClose: () => void;
+export function EvaluationResultScreen({ token, record, onClose, loadResult = fetchEvaluationResult }: {
+  token: string; record: Pick<EvaluationResult, 'id' | 'lesson' | 'person'>; onClose: () => void;
+  loadResult?: typeof fetchEvaluationResult;
 }) {
-  const detail = useAsyncData({ loader: () => fetchEvaluationResult(token, record.id), deps: [token, record.id] });
+  const detail = useAsyncData({ loader: () => loadResult(token, record.id), deps: [token, record.id, loadResult] });
   return (
     <FunctionShell title="已评详情" onClose={onClose}>
       <ListContainer loading={detail.loading || detail.refreshing} error={detail.error} onRetry={detail.retry}>
@@ -238,11 +253,21 @@ export function TimelyEvaluationScreen({ onClose, onSessionExpired, openWebPage 
   const list = useAsyncData({ loader: fetchEvaluationTasks, deps: [], onSessionExpired });
 
   if (task && list.data) {
+    const { token, permissions } = list.data;
+    const surveyId = task.surveies[task.surveies.length - 1].id;
+    const back = () => { setTask(null); void list.reload(); };
     return (
       <EvaluationForm
-        task={task} session={list.data} onBack={() => { setTask(null); void list.reload(); }}
-        onDone={() => { setTask(null); void list.reload(); Alert.alert('评教已提交'); }}
-        onSessionExpired={onSessionExpired} openWebPage={openWebPage}
+        title="即时性评价问卷"
+        courseName={task.lesson.course.nameZh}
+        teacherName={task.evaluatedTeacher.person.nameZh}
+        surveyId={surveyId} token={token} permissions={permissions} permissionPrefix="timely-evaluation"
+        buildForm={(survey, answers, anonymity) => buildEvaluationSubmission(task, surveyId, survey, answers, anonymity)}
+        submitForm={form => submitEvaluation(token, form)}
+        onBack={back}
+        onDone={() => { back(); Alert.alert('评教已提交'); }}
+        onSessionExpired={onSessionExpired}
+        onOpenWeb={openWebPage && (() => openWebPage('学生即时性评价', TIMELY_EVALUATION_PATH))}
       />
     );
   }

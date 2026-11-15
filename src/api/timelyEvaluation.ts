@@ -5,6 +5,8 @@ import { ANDROID_CHROME_USER_AGENT, SITE } from '../config/site';
 import { SessionExpiredError } from './data';
 
 export const TIMELY_EVALUATION_PATH = '/student/for-std/evaluation/timely';
+export const SUMMATIVE_EVALUATION_PATH = '/student/for-std/evaluation/summative';
+const SUMMATIVE_API = '/student/summative-evaluation';
 const API_BASE = SITE.swjw + '/evaluation-student-backend/api/v1';
 const RESULT_PATH = '/student/immediate-evaluation/result';
 type Id = number | string;
@@ -65,12 +67,13 @@ function request(url: string, init?: Parameters<typeof fetch>[1]) {
   return fetch(url, { ...init, signal: AbortSignal.timeout(20000), redirect: 'manual', credentials: 'omit' });
 }
 
-async function api<T>(path: string, token?: string, body?: FormData, post = false): Promise<T> {
+async function api<T>(path: string, token?: string, body?: FormData | string, post = false): Promise<T> {
   const response = await request(API_BASE + path, {
     method: post || body ? 'POST' : 'GET',
     body,
     headers: {
       Accept: 'application/json',
+      ...(typeof body === 'string' ? { 'Content-Type': 'application/json' } : {}),
       'User-Agent': ANDROID_CHROME_USER_AGENT,
       ...(token ? { Authorization: token } : {}),
     },
@@ -86,8 +89,8 @@ async function api<T>(path: string, token?: string, body?: FormData, post = fals
   return payload.data;
 }
 
-export async function fetchEvaluationSession() {
-  const entry = SITE.swjw + TIMELY_EVALUATION_PATH;
+export async function fetchEvaluationSession(path = TIMELY_EVALUATION_PATH) {
+  const entry = SITE.swjw + path;
   const cookies = await CookieManager.get(entry, Platform.OS === 'ios');
   const cookieHeader = Object.values(cookies).map(({ name, value }) => `${name}=${value}`).join('; ');
   if (!cookieHeader) throw new SessionExpiredError();
@@ -141,12 +144,19 @@ export function buildEvaluationSubmission(
   task: EvaluationTask, surveyId: Id, survey: EvaluationSurvey,
   answers: Record<string, EvaluationAnswer>, anonymity: boolean,
 ) {
-  const form = new FormData();
   const { lesson, evaluatedTeacher, schedule } = task;
   const fields = {
     surveyId, date: schedule.dateStr, lessonId: lesson.id, personId: evaluatedTeacher.person.id,
     teacherId: evaluatedTeacher.teacher?.id, unitBegin: schedule.unittimeBegin, unitEnd: schedule.unittimeEnd,
   };
+  return buildSurveySubmission(fields, survey, answers, anonymity);
+}
+
+export function buildSurveySubmission(
+  fields: Record<string, Id | undefined>, survey: EvaluationSurvey,
+  answers: Record<string, EvaluationAnswer>, anonymity: boolean,
+) {
+  const form = new FormData();
   for (const [key, value] of Object.entries(fields)) {
     if (value != null) form.append(key, String(value));
   }
@@ -230,4 +240,62 @@ export async function fetchEvaluationHistory(token: string, semesterId: Id) {
 
 export function fetchEvaluationResult(token: string, id: Id) {
   return api<EvaluationResultDetail>(RESULT_PATH + '/' + encodeURIComponent(id), token);
+}
+
+export type SummativeTask = {
+  id: Id;
+  lesson: EvaluationResult['lesson'];
+  person: Named;
+  date?: string;
+  survey?: Named & { id: Id };
+  surveyName?: string;
+  timeLimit: boolean;
+  submitted?: boolean;
+  submitDateTime?: string;
+  evaluatedTeacherType: string;
+};
+type EvaluationTerm = Named & { id: Id };
+type SummativeConfig = {
+  show?: boolean;
+  time?: number;
+  content?: string;
+  intervalScoreEvaluations?: {
+    intervalMinScore: number; intervalMaxScore: number; intervalScoreRate: number; scoreIncludes: boolean;
+  }[];
+  limitDetails?: { role: string; overCount: number; limitLine: number }[];
+};
+
+export async function fetchSummativeSession() {
+  const token = await fetchEvaluationSession(SUMMATIVE_EVALUATION_PATH);
+  const [current, terms, config, permissions] = await Promise.all([
+    api<EvaluationTerm>('/evaluation/base/current-semester', token),
+    api<EvaluationTerm[]>('/evaluation/base/semesters', token),
+    api<SummativeConfig>(SUMMATIVE_API + '/config', token),
+    api<string[]>('/evaluation/permissions', token),
+  ]);
+  const read = config.show ? await api<string | boolean>('/evaluation/account-setting/get-setting?keyPrefix=hasRead', token) : true;
+  return { token, current, terms, config, permissions, read: read === true || read === 'true' };
+}
+
+export async function acknowledgeSummativeNotice(token: string) {
+  await api<unknown>('/evaluation/account-setting/save-setting', token, JSON.stringify(['hasRead', true]));
+}
+
+export async function fetchSummativeTasks(token: string, term: Id) {
+  const id = encodeURIComponent(term);
+  const [tasks, results] = await Promise.all([
+    api<SummativeTask[] | null>(SUMMATIVE_API + '/task/semester/' + id, token),
+    api<SummativeTask[] | null>(SUMMATIVE_API + '/results/semester/' + id, token),
+  ]);
+  return { tasks: tasks ?? [], results: results ?? [] };
+}
+
+export async function fetchSummativeResult(token: string, id: Id) {
+  const result = await api<EvaluationResultDetail & { scoreConfig: EvaluationResultDetail['displayConfig'] }>('/evaluation/summative/result/' + encodeURIComponent(id), token);
+  return { ...result, displayConfig: result.scoreConfig };
+}
+
+export function submitSummativeEvaluation(token: string, form: FormData, anonymity: boolean) {
+  const path = anonymity ? '/anonymity-result' : '/result';
+  return api<unknown>(SUMMATIVE_API + path, token, form);
 }

@@ -61,7 +61,7 @@ export type EvaluationSurvey = Partial<Record<keyof typeof questionGroups, Quest
     rhsRadioQuestionOptions: string[];
   }[];
 };
-export type EvaluationAnswer = { selected?: string[]; custom?: Record<string, string>; text?: string; blanks?: string[]; rating?: number };
+export type EvaluationAnswer = { selected?: string[]; custom?: Record<string, string>; text?: string; blanks?: string[]; rating?: number; attachment?: { name: string; file: Blob } };
 
 function request(url: string, init?: Parameters<typeof fetch>[1]) {
   return fetch(url, { ...init, signal: AbortSignal.timeout(20000), redirect: 'manual', credentials: 'omit' });
@@ -152,21 +152,10 @@ export function buildEvaluationSubmission(
   return buildSurveySubmission(fields, survey, answers, anonymity);
 }
 
-export function buildSurveySubmission(
-  fields: Record<string, Id | undefined>, survey: EvaluationSurvey,
-  answers: Record<string, EvaluationAnswer>, anonymity: boolean,
-) {
-  const form = new FormData();
-  for (const [key, value] of Object.entries(fields)) {
-    if (value != null) form.append(key, String(value));
-  }
-  // Mirror the portal's multipart serialization. It omits the false anonymity field.
-  if (anonymity) form.append('anonymity', 'true');
-  let index = 0;
-  let total = 0;
+function collectSurveyAnswers(survey: EvaluationSurvey, answers: Record<string, EvaluationAnswer>) {
+  const collected = [];
   for (const question of surveyQuestions(survey)) {
     if (question.type === 'header') continue;
-    if (question.type === 'upload') throw new Error('此问卷含附件题，请通过教务网页完成');
     const answer = answers[question.id] ?? {};
     const selected = answer.selected ?? [];
     const optionResults = selected.map(name => {
@@ -183,26 +172,23 @@ export function buildSurveySubmission(
     const score = question.type === 'mark'
       ? Number(((answer.rating ?? 0) / (question.count || 1) * (question.score ?? 0)).toFixed(6))
       : question.type === 'radio' ? question.options?.find(option => option.name === selected[0])?.score ?? 0 : 0;
-    const answered = Boolean(result || answer.rating || blanks.some(Boolean));
+    const answered = Boolean(result || answer.rating || answer.attachment || blanks.some(Boolean));
     if (question.required && (!answered || blanks.some(value => !value))) {
       throw new Error(`请完成「${question.title}」`);
     }
     if (!answered) continue;
-    const prefix = `answers[${index++}]`;
-    form.append(prefix + '.questionId', String(question.id));
-    form.append(prefix + '.questionTitle', question.title);
-    if (result) form.append(prefix + '.result', result);
-    if (score) form.append(prefix + '.score', String(score));
-    if (question.type === 'multiple') form.append(prefix + '.checkedArr', selected.join(','));
-    if (question.type === 'radio') form.append(prefix + '.radioName', selected[0]);
-    blanks.forEach((value, i) => {
-      const child = `${prefix}.fillInBlankChildAnswers[${i}]`;
-      form.append(child + '.questionId', String(question.id));
-      form.append(child + '.questionTitle', question.fillInBlankOptions![i].name);
-      form.append(child + '.result', value);
-      form.append(child + '.childAnswerIndex', String(i));
+    collected.push({
+      questionId: question.id,
+      questionTitle: question.title,
+      result,
+      score,
+      checkedArr: question.type === 'multiple' ? selected : [],
+      radioName: question.type === 'radio' ? selected[0] ?? '' : '',
+      attachment: question.type === 'upload' ? answer.attachment : undefined,
+      fillInBlankChildAnswers: blanks.map((value, i) => ({
+        questionId: question.id, questionTitle: question.fillInBlankOptions![i].name, result: value, childAnswerIndex: i,
+      })),
     });
-    total += score;
   }
   for (const rule of survey.radioQuestionContradictions ?? []) {
     const left = answers[rule.lhsRadioQuestionId]?.selected?.[0];
@@ -211,8 +197,47 @@ export function buildSurveySubmission(
       throw new Error(`选项「${left}」与「${right}」冲突，请重新选择`);
     }
   }
+  return collected;
+}
+
+export function buildSurveySubmission(
+  fields: Record<string, Id | undefined>, survey: EvaluationSurvey,
+  answers: Record<string, EvaluationAnswer>, anonymity: boolean,
+) {
+  const form = new FormData();
+  for (const [key, value] of Object.entries(fields)) {
+    if (value != null) form.append(key, String(value));
+  }
+  if (anonymity) form.append('anonymity', 'true');
+  const collected = collectSurveyAnswers(survey, answers);
+  collected.forEach((answer, index) => {
+    const prefix = `answers[${index}]`;
+    form.append(prefix + '.questionId', String(answer.questionId));
+    form.append(prefix + '.questionTitle', answer.questionTitle);
+    if (answer.result) form.append(prefix + '.result', answer.result);
+    if (answer.score) form.append(prefix + '.score', String(answer.score));
+    if (answer.checkedArr.length) form.append(prefix + '.checkedArr', answer.checkedArr.join(','));
+    if (answer.radioName) form.append(prefix + '.radioName', answer.radioName);
+    if (answer.attachment) form.append(prefix + '.attachment', answer.attachment.file, answer.attachment.name);
+    answer.fillInBlankChildAnswers.forEach((entry, i) => {
+      const child = `${prefix}.fillInBlankChildAnswers[${i}]`;
+      for (const [key, value] of Object.entries(entry)) form.append(child + '.' + key, String(value));
+    });
+  });
+  const total = collected.reduce((sum, answer) => sum + answer.score, 0);
   if (survey.scoring && total) form.append('score', String(Number(total.toFixed(6))));
   return form;
+}
+
+export function buildSurveyGroupSubmission(
+  taskId: Id, surveyId: Id, survey: EvaluationSurvey,
+  answers: Record<string, EvaluationAnswer>, anonymity: boolean,
+) {
+  const list = collectSurveyAnswers(survey, answers);
+  if (!list.length) throw new Error('请至少填写一份问卷');
+  const entries = list.map(({ questionId, questionTitle, result, score, checkedArr, radioName }) =>
+    ({ questionId, questionTitle, result, score, checkedArr, radioName }));
+  return JSON.stringify([{ taskId, surveyId, anonymity, score: entries.reduce((sum, answer) => sum + answer.score, 0), answers: entries }]);
 }
 
 export function submitEvaluation(token: string, form: FormData) {
@@ -281,11 +306,13 @@ export async function acknowledgeSummativeNotice(token: string) {
   await api<unknown>('/evaluation/account-setting/save-setting', token, JSON.stringify(['hasRead', true]));
 }
 
-export async function fetchSummativeTasks(token: string, term: Id) {
+export async function fetchSummativeTasks(token: string, term: Id, bySurvey = false) {
   const id = encodeURIComponent(term);
+  const root = SUMMATIVE_API + (bySurvey ? '/survey-task' : '');
+  const taskPath = bySurvey ? '/semester/' : '/task/semester/';
   const [tasks, results] = await Promise.all([
-    api<SummativeTask[] | null>(SUMMATIVE_API + '/task/semester/' + id, token),
-    api<SummativeTask[] | null>(SUMMATIVE_API + '/results/semester/' + id, token),
+    api<SummativeTask[] | null>(root + taskPath + id, token),
+    api<SummativeTask[] | null>(root + '/results/semester/' + id, token),
   ]);
   return { tasks: tasks ?? [], results: results ?? [] };
 }
@@ -298,4 +325,27 @@ export async function fetchSummativeResult(token: string, id: Id) {
 export function submitSummativeEvaluation(token: string, form: FormData, anonymity: boolean) {
   const path = anonymity ? '/anonymity-result' : '/result';
   return api<unknown>(SUMMATIVE_API + path, token, form);
+}
+
+export async function fetchSummativeSurveyGroup(token: string, surveyId: Id, term: Id, taskId: Id): Promise<EvaluationSurvey> {
+  const group = await api<{
+    survey: EvaluationSurvey & { questions: (Question & { type: string; categoryName?: string })[] };
+    taskList: SummativeTask[];
+  }>(SUMMATIVE_API + '/survey-task/survey/' + encodeURIComponent(surveyId) + '/semester/' + encodeURIComponent(term), token);
+  if (!group.taskList.some(task => String(task.id) === String(taskId) && task.timeLimit)) {
+    throw new Error('该评教任务当前不可填写');
+  }
+  const { questions, ...survey } = group.survey;
+  const groups = { RADIO: 'radioQuestions', MULTIPLE: 'multipleQuestions', MARK: 'markQuestions', BLANK: 'blankQuestions' } as const;
+  const normalized: EvaluationSurvey = { ...survey, radioQuestions: [], multipleQuestions: [], markQuestions: [], blankQuestions: [] };
+  for (const [index, question] of questions.entries()) {
+    const key = groups[question.type as keyof typeof groups];
+    if (!key) throw new Error('学校返回了暂未支持的问卷题型');
+    normalized[key]?.push({ ...question, indexNo: question.indexNo ?? index });
+  }
+  return normalized;
+}
+
+export function submitSummativeSurveyGroup(token: string, body: string) {
+  return api<unknown>(SUMMATIVE_API + '/survey-task/result', token, body);
 }

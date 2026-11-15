@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
-  acknowledgeSummativeNotice, buildSurveySubmission, fetchSummativeResult, fetchSummativeSession,
-  fetchSummativeTasks, submitSummativeEvaluation, SUMMATIVE_EVALUATION_PATH, type SummativeTask,
+  acknowledgeSummativeNotice, buildSurveyGroupSubmission, buildSurveySubmission, fetchSummativeResult, fetchSummativeSession,
+  fetchSummativeSurveyGroup, fetchSummativeTasks, submitSummativeEvaluation, submitSummativeSurveyGroup, SUMMATIVE_EVALUATION_PATH, type SummativeTask,
 } from '../../api/timelyEvaluation';
 import { FunctionShell } from '../../components/FunctionShell';
 import { ListContainer } from '../../components/ListContainer';
@@ -65,13 +65,14 @@ function Notice({ session, onRead }: { session: Session; onRead: () => void }) {
 
 function ByTask({ session, onClose, onSessionExpired, openWebPage }: NativeFunctionProps & { session: Session }) {
   const [term, setTerm] = useState(session.current.id);
+  const [bySurvey, setBySurvey] = useState(false);
   const [history, setHistory] = useState(false);
   const [read, setRead] = useState(session.read);
   const [task, setTask] = useState<SummativeTask | null>(null);
   const [result, setResult] = useState<SummativeTask | null>(null);
   const list = useAsyncData({
-    loader: () => fetchSummativeTasks(session.token, term),
-    deps: [session.token, term],
+    loader: () => fetchSummativeTasks(session.token, term, bySurvey),
+    deps: [session.token, term, bySurvey],
     onSessionExpired,
   });
 
@@ -85,10 +86,15 @@ function ByTask({ session, onClose, onSessionExpired, openWebPage }: NativeFunct
         title="总结性评教问卷" courseName={task.lesson.course.nameZh} teacherName={task.person.nameZh}
         surveyId={surveyId} token={session.token} permissions={session.permissions}
         permissionPrefix="summative-evaluation"
-        buildForm={(survey, answers, anonymity) => buildSurveySubmission({ surveyId, taskId: task.id }, survey, answers, anonymity)}
-        submitForm={(form, anonymity) => submitSummativeEvaluation(session.token, form, anonymity)}
+        loadSurvey={bySurvey ? (token, id) => fetchSummativeSurveyGroup(token, id, term, task.id) : undefined}
+        buildForm={(survey, answers, anonymity) => bySurvey
+          ? buildSurveyGroupSubmission(task.id, surveyId, survey, answers, anonymity)
+          : buildSurveySubmission({ surveyId, taskId: task.id }, survey, answers, anonymity)}
+        submitForm={(form, anonymity) => typeof form === 'string'
+          ? submitSummativeSurveyGroup(session.token, form)
+          : submitSummativeEvaluation(session.token, form, anonymity)}
         onBack={back} onDone={() => { back(); Alert.alert('评教已提交'); }}
-        onSessionExpired={onSessionExpired} onOpenWeb={openWeb}
+        onSessionExpired={onSessionExpired}
       />
     );
   }
@@ -111,6 +117,11 @@ function ByTask({ session, onClose, onSessionExpired, openWebPage }: NativeFunct
   return (
     <FunctionShell title="学生总结性评教" onClose={onClose}>
       {!read ? <Notice session={session} onRead={() => setRead(true)} /> : (
+        <>
+        <View style={[styles.row, styles.mode]}>
+          <Button label="按任务评教" selected={!bySurvey} onPress={() => setBySurvey(false)} />
+          <Button label="按问卷评教" selected={bySurvey} onPress={() => setBySurvey(true)} />
+        </View>
         <ListContainer loading={list.loading} error={list.error} onRetry={list.retry}>
           <ScrollView contentContainerStyle={styles.content}
             refreshControl={<RefreshControl refreshing={list.refreshing} onRefresh={list.reload} />}>
@@ -151,6 +162,7 @@ function ByTask({ session, onClose, onSessionExpired, openWebPage }: NativeFunct
             })}
           </ScrollView>
         </ListContainer>
+        </>
       )}
       {!!openWeb && <Button label="打开教务网页" onPress={openWeb} />}
     </FunctionShell>
@@ -172,6 +184,7 @@ export function SummativeEvaluationScreen(props: NativeFunctionProps) {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.md, gap: spacing.md },
+  mode: { padding: spacing.md },
   row: { flexDirection: 'row', gap: spacing.sm },
   heading: { color: colors.text, fontSize: 16, fontWeight: '600' },
   text: { color: colors.text, fontSize: 15, lineHeight: 22 },

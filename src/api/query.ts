@@ -1052,9 +1052,25 @@ function cellOf(row: MappedTableRow, labelLike: string[]): MappedTableCell | und
   return row.cells.find((c) => labelLike.some((l) => c.header.includes(l)));
 }
 
-/** 缓考申请：各学期考试安排表（含可申请状态） */
+const EXAM_DELAY_PATH = '/student/for-std/exam-delay-apply';
+
+/** The portal renders a student-record chooser when the account has several enrollments. */
 export async function fetchExamDelayApplyRows(): Promise<FeatureApplyRow[]> {
-  const raw = guardSession(await portalRequest('/student/for-std/exam-delay-apply'));
+  const raw = await portalRequest(EXAM_DELAY_PATH);
+  if (!raw.includes(EXAM_DELAY_PATH + '/index/')) return parseExamDelayApplyRows(raw);
+
+  const records = Array.from(raw.matchAll(/<button\b(?=[^>]*\bonclick=["']myFunction\(this\)["'])(?=[^>]*\bvalue=["'](\d+)["'])[^>]*>/gi), match => match[1]);
+  const ids = [...new Set(records)];
+  if (!ids.length) return parseExamDelayApplyRows(raw);
+
+  const pages = await Promise.all(ids.map(id => portalRequest(EXAM_DELAY_PATH + '/index/' + id)));
+  return pages.flatMap((page, index) => parseExamDelayApplyRows(page).map(row => ({
+    ...row,
+    group: [`学籍 ${index + 1}`, row.group].filter(Boolean).join(' · '),
+  })));
+}
+
+function parseExamDelayApplyRows(raw: string): FeatureApplyRow[] {
   const rows = parseMappedTables(raw, {
     require: ['课程名称', '考场'],
     groupPattern: /semester-exam-delay-apply">([^<]+)<\/span>/g,

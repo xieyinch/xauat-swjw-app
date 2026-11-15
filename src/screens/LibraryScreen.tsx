@@ -3,12 +3,14 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { WebViewNavigation } from 'react-native-webview';
 import { PortalWebView, PortalWebViewHandle } from '../components/PortalWebView';
+import { LibraryReservationScreen } from './LibraryReservationScreen';
 import { colors, spacing } from '../theme';
 
 interface Props {
   title: string;
   uri: string;
   onClose: () => void;
+  showReservationRules?: boolean;
   /** 是否处于前台可见状态；常驻承载时用于停用返回键监听 */
   active?: boolean;
   /** Android 系统返回键直接关闭页面（不沿 H5 历史后退），避免误退回登录态 */
@@ -17,9 +19,10 @@ interface Props {
   onNavigate?: (nav: WebViewNavigation, url: string) => void;
 }
 
-export function LibraryScreen({ title, uri, onClose, active = true, systemBackCloses = false, onNavigate }: Props) {
+export function LibraryScreen({ title, uri, onClose, active = true, systemBackCloses = false, onNavigate, showReservationRules = false }: Props) {
   const webViewRef = useRef<PortalWebViewHandle>(null);
   const [canGoBack, setCanGoBack] = useState(false);
+  const [rulesVisible, setRulesVisible] = useState(false);
   const canGoBackRef = useRef(false);
   const onNavigateRef = useRef(onNavigate);
   useEffect(() => {
@@ -33,6 +36,10 @@ export function LibraryScreen({ title, uri, onClose, active = true, systemBackCl
   }, [uri]);
 
   const handleBack = useCallback(() => {
+    if (rulesVisible) {
+      setRulesVisible(false);
+      return true;
+    }
     if (systemBackCloses) {
       onClose();
       return true;
@@ -40,7 +47,7 @@ export function LibraryScreen({ title, uri, onClose, active = true, systemBackCl
     if (canGoBackRef.current) webViewRef.current?.goBack();
     else onClose();
     return true;
-  }, [onClose, systemBackCloses]);
+  }, [onClose, rulesVisible, systemBackCloses]);
 
   useEffect(() => {
     if (Platform.OS !== 'android' || !active) return;
@@ -56,6 +63,11 @@ export function LibraryScreen({ title, uri, onClose, active = true, systemBackCl
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
         <View style={styles.actions}>
+          {showReservationRules && (
+            <TouchableOpacity onPress={() => setRulesVisible(true)} accessibilityLabel="预约规则" style={styles.btn}>
+              <Ionicons name="information-circle-outline" size={20} color={colors.text} />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity onPress={() => webViewRef.current?.goBack()} disabled={!canGoBack} style={styles.btn}>
             <Ionicons name="arrow-undo-outline" size={20} color={canGoBack ? colors.text : colors.textSecondary} />
           </TouchableOpacity>
@@ -65,6 +77,9 @@ export function LibraryScreen({ title, uri, onClose, active = true, systemBackCl
         </View>
       </View>
       <PortalWebView ref={webViewRef} uri={uri} onNavigationStateChange={handleNav} />
+      {rulesVisible && <View style={StyleSheet.absoluteFill}>
+        <LibraryReservationScreen onClose={() => setRulesVisible(false)} />
+      </View>}
     </View>
   );
 }

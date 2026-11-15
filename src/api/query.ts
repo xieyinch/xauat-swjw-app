@@ -31,7 +31,7 @@ import type {
   TutorSelectResult,
 } from '../types';
 import { SITE } from '../config/site';
-import { isLoginPageText, webFetch } from './bridge';
+import { isLoginPageText, portalRequest } from './portalClient';
 import { getStudentInfoCached, SessionExpiredError } from './data';
 import { stripHtmlSafe } from './parsers';
 
@@ -59,14 +59,14 @@ function parseJsonArray<T>(raw: string, label: string): T[] {
 
 /** 访问功能模块落地页建立服务端会话上下文（选课/个性化等接口依赖） */
 async function preflightLanding(path: string): Promise<void> {
-  await guardSession(await webFetch(path));
+  await guardSession(await portalRequest(path));
 }
 
 // ---------- 22.03 考试安排 ----------
 
 export async function fetchExamArrange(): Promise<ExamArrangeItem[]> {
   const info = await getStudentInfoCached();
-  const raw = guardSession(await webFetch(`/student/for-std/exam-arrange/info/${info.studentId}`));
+  const raw = guardSession(await portalRequest(`/student/for-std/exam-arrange/info/${info.studentId}`));
   return parseExamArrangeHtml(raw);
 }
 
@@ -128,7 +128,7 @@ export interface RoomFreeResult {
 }
 
 export async function fetchRoomCampusList(): Promise<RoomCampusOption[]> {
-  const raw = guardSession(await webFetch('/student/for-std/room-free'));
+  const raw = guardSession(await portalRequest('/student/for-std/room-free'));
   const m = raw.match(/var\s+_campusList\s*=\s*(\[[\s\S]*?\])\s*;/);
   if (!m) return [];
   // SSR 输出的是 JS 单引号字面量，非 JSON：{ 'text': '默认校区', 'value': 1 }
@@ -141,7 +141,7 @@ export async function fetchRoomCampusList(): Promise<RoomCampusOption[]> {
 
 export async function fetchRoomUnits(campusId: number): Promise<RoomUnitOption[]> {
   const raw = guardSession(
-    await webFetch(`/student/ws/room-borrow/get-unit-campus?campusId=${encodeURIComponent(campusId)}`),
+    await portalRequest(`/student/ws/room-borrow/get-unit-campus?campusId=${encodeURIComponent(campusId)}`),
   );
   try {
     const d = JSON.parse(raw);
@@ -175,7 +175,7 @@ export async function fetchRoomFree(query: RoomFreeQuery): Promise<RoomFreeItem[
     hasDataPermission: false,
   };
   const raw = guardSession(
-    await webFetch('/student/ws/room-borrow/free-list', {
+    await portalRequest('/student/ws/room-borrow/free-list', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -228,7 +228,7 @@ export async function fetchLessonSearch(
   if (keyword) params.set('query', keyword);
   params.set('queryPage__', `${page},20`);
   const raw = guardSession(
-    await webFetch(
+    await portalRequest(
       `/student/for-std/lesson-search/semester/${semesterId}/search/${studentId}?${params.toString()}`,
     ),
   );
@@ -301,7 +301,7 @@ export interface CommonFileCategory {
 export async function fetchCommonFiles(categoryId?: number): Promise<CommonFileItem[]> {
   const params = new URLSearchParams({ identity: 'STUDENT', fileNameLike: '' });
   if (categoryId != null) params.set('commonFileTypeAssoc', String(categoryId));
-  const raw = guardSession(await webFetch(`/student/common-file/search/download-data?${params.toString()}`));
+  const raw = guardSession(await portalRequest(`/student/common-file/search/download-data?${params.toString()}`));
   const d = parseJson<{ commonFiles?: Array<Record<string, unknown>> }>(raw);
   return (d.commonFiles ?? []).map((f) => {
     const fileInfo = (f.fileInfo ?? {}) as Record<string, unknown>;
@@ -318,7 +318,7 @@ export async function fetchCommonFiles(categoryId?: number): Promise<CommonFileI
 }
 
 export async function fetchCommonFileCategories(): Promise<CommonFileCategory[]> {
-  const raw = guardSession(await webFetch('/student/common-file/search/download-data?identity=STUDENT&fileNameLike='));
+  const raw = guardSession(await portalRequest('/student/common-file/search/download-data?identity=STUDENT&fileNameLike='));
   const d = parseJson<{ commonFiles?: Array<Record<string, unknown>> }>(raw);
   const seen = new Map<number, string>();
   for (const f of d.commonFiles ?? []) {
@@ -332,7 +332,7 @@ export async function fetchCommonFileCategories(): Promise<CommonFileCategory[]>
 // ---------- 10.01 学籍信息 ----------
 
 export async function fetchStudentInfoDetail(): Promise<StudentInfoGroup[]> {
-  const raw = guardSession(await webFetch(`${SITE.swjw}/student/for-std/student-info`));
+  const raw = guardSession(await portalRequest(`${SITE.swjw}/student/for-std/student-info`));
   return parseStudentInfoHtml(raw);
 }
 
@@ -344,7 +344,7 @@ export interface ProgramData {
 }
 
 export async function fetchProgram(studentId: number): Promise<ProgramData> {
-  const raw = guardSession(await webFetch(`/student/for-std/program/root-module-json/${studentId}`));
+  const raw = guardSession(await portalRequest(`/student/for-std/program/root-module-json/${studentId}`));
   const d = parseJson<Record<string, unknown>>(raw);
   return parseProgramJson(d);
 }
@@ -352,7 +352,7 @@ export async function fetchProgram(studentId: number): Promise<ProgramData> {
 // ---------- 12.03 培养方案完成情况 ----------
 
 export async function fetchProgramCompletion(studentId: number): Promise<ProgramCompletion> {
-  const raw = guardSession(await webFetch(`/student/for-std/program-completion-preview/json/${studentId}`));
+  const raw = guardSession(await portalRequest(`/student/for-std/program-completion-preview/json/${studentId}`));
   const d = parseJson<Record<string, unknown>>(raw);
   return parseProgramCompletionJson(d);
 }
@@ -370,7 +370,7 @@ export interface AdminClassTable {
 
 export async function fetchAdminClassTable(semesterId: number, studentId: number): Promise<AdminClassTable> {
   const raw = guardSession(
-    await webFetch(
+    await portalRequest(
       `/student/for-std/adminclass-course-table/print-data?studentId=${studentId}&semesterId=${semesterId}&bizTypeId=2`,
     ),
   );
@@ -420,28 +420,28 @@ export interface ExamSignupData {
 }
 
 export async function fetchExamSignup(): Promise<ExamSignupData> {
-  const raw = guardSession(await webFetch('/student/for-std/other-exam-signup'));
+  const raw = guardSession(await portalRequest('/student/for-std/other-exam-signup'));
   return parseExamSignupHtml(raw);
 }
 
 // ---------- 24.07 学业预警 ----------
 
 export async function fetchPrecaution(): Promise<PrecautionItem[]> {
-  const raw = guardSession(await webFetch('/student/for-std/precaution'));
+  const raw = guardSession(await portalRequest('/student/for-std/precaution'));
   return parsePrecautionHtml(raw);
 }
 
 // ---------- 33.02 我的导师 ----------
 
 export async function fetchTutor(): Promise<TutorInfo | null> {
-  const raw = guardSession(await webFetch('/student/for-std/select/std-tutor-ware'));
+  const raw = guardSession(await portalRequest('/student/for-std/select/std-tutor-ware'));
   return parseTutorHtml(raw);
 }
 
 // ---------- 33.03 导师互选结果查询 ----------
 
 export async function fetchTutorSelectResult(): Promise<TutorSelectResult[]> {
-  const raw = guardSession(await webFetch('/student/for-std/select/std-tutor-select-result'));
+  const raw = guardSession(await portalRequest('/student/for-std/select/std-tutor-select-result'));
   return parseTutorSelectResultHtml(raw);
 }
 
@@ -449,7 +449,7 @@ export async function fetchTutorSelectResult(): Promise<TutorSelectResult[]> {
 
 export async function fetchEvaluationResults(): Promise<EvaluationResult[]> {
   const info = await getStudentInfoCached();
-  const raw = guardSession(await webFetch(`/student/for-std/my-evaluation-result/search/${info.studentId}`));
+  const raw = guardSession(await portalRequest(`/student/for-std/my-evaluation-result/search/${info.studentId}`));
   return parseEvaluationResultHtml(raw);
 }
 
@@ -457,7 +457,7 @@ export async function fetchEvaluationResults(): Promise<EvaluationResult[]> {
 
 export async function fetchTutorEvaluations(): Promise<TutorEvaluation[]> {
   const info = await getStudentInfoCached();
-  const raw = guardSession(await webFetch(`/student/for-std/evaluation-index-result/search/${info.studentId}`));
+  const raw = guardSession(await portalRequest(`/student/for-std/evaluation-index-result/search/${info.studentId}`));
   return parseTutorEvaluationHtml(raw);
 }
 
@@ -465,7 +465,7 @@ export async function fetchTutorEvaluations(): Promise<TutorEvaluation[]> {
 
 export async function fetchDegreeApplyRecords(): Promise<DegreeApplyRecord[]> {
   const info = await getStudentInfoCached();
-  const raw = guardSession(await webFetch(`/student/for-std/degree-apply/search/${info.studentId}`));
+  const raw = guardSession(await portalRequest(`/student/for-std/degree-apply/search/${info.studentId}`));
   return parseDegreeApplyHtml(raw);
 }
 
@@ -483,7 +483,7 @@ const TUTOR_CHANGE_STATE_MAP: Record<string, string> = {
 
 export async function fetchTutorChangeApplies(): Promise<TutorChangeApply[]> {
   const info = await getStudentInfoCached();
-  const raw = guardSession(await webFetch(`/student/for-std/tutor-change-apply/search?studentId=${info.studentId}`));
+  const raw = guardSession(await portalRequest(`/student/for-std/tutor-change-apply/search?studentId=${info.studentId}`));
   return parseTutorChangeJson(raw);
 }
 
@@ -514,7 +514,7 @@ export interface GuidanceData {
 }
 
 export async function fetchGuidanceRecords(): Promise<GuidanceData> {
-  const raw = guardSession(await webFetch('/student/for-std/guidance-record'));
+  const raw = guardSession(await portalRequest('/student/for-std/guidance-record'));
   return parseGuidanceHtml(raw);
 }
 
@@ -878,7 +878,7 @@ export function parseExemptApplyWindowHtml(html: string): ExemptApplyWindow {
 export async function fetchExemptStudyData(): Promise<ExemptStudyData> {
   const info = await getStudentInfoCached();
   const raw = guardSession(
-    await webFetch(`/student/for-std/exempt-study-apply/applyIndex/${info.studentId}`),
+    await portalRequest(`/student/for-std/exempt-study-apply/applyIndex/${info.studentId}`),
   );
   const rows = parseMappedRows(raw, ['课程信息', '学期', '申请日期', '申请原因', '审核状态']);
   const semesterM = raw.match(/semesterId\s*:\s*(\d+)/);
@@ -899,7 +899,7 @@ export async function fetchExemptStudyData(): Promise<ExemptStudyData> {
 export async function fetchExemptGrades(): Promise<ExemptGradeItem[]> {
   const info = await getStudentInfoCached();
   const raw = guardSession(
-    await webFetch(`/student/for-std/exempt-study-apply/query-exempt-study-grade/${info.studentId}`),
+    await portalRequest(`/student/for-std/exempt-study-apply/query-exempt-study-grade/${info.studentId}`),
   );
   const rows = parseMappedRows(raw, ['课程信息', '学期', '免修成绩', '是否加入成绩库']);
   return rows.map((r) => ({
@@ -915,7 +915,7 @@ export async function fetchCourseSelectTurns(): Promise<CourseSelectTurn[]> {
   const info = await getStudentInfoCached();
   await preflightLanding('/student/for-std/course-select');
   const raw = guardSession(
-    await webFetch('/student/ws/for-std/course-select/open-turns', {
+    await portalRequest('/student/ws/for-std/course-select/open-turns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
       body: `bizTypeId=2&studentId=${info.studentId}`,
@@ -929,7 +929,7 @@ export async function fetchCustomSelectSwitches(): Promise<CustomSelectSwitch[]>
   const info = await getStudentInfoCached();
   await preflightLanding('/student/for-std/course-select-apply');
   const raw = guardSession(
-    await webFetch(
+    await portalRequest(
       `/student/ws/for-std/custom-course-select-apply/open-switches?bizTypeId=2&studentId=${info.studentId}`,
     ),
   );
@@ -1054,7 +1054,7 @@ function cellOf(row: MappedTableRow, labelLike: string[]): MappedTableCell | und
 
 /** 缓考申请：各学期考试安排表（含可申请状态） */
 export async function fetchExamDelayApplyRows(): Promise<FeatureApplyRow[]> {
-  const raw = guardSession(await webFetch('/student/for-std/exam-delay-apply'));
+  const raw = guardSession(await portalRequest('/student/for-std/exam-delay-apply'));
   const rows = parseMappedTables(raw, {
     require: ['课程名称', '考场'],
     groupPattern: /semester-exam-delay-apply">([^<]+)<\/span>/g,
@@ -1088,7 +1088,7 @@ export async function fetchExamDelayApplyRows(): Promise<FeatureApplyRow[]> {
 
 /** 课程替代申请：「我的替代课程申请单」记录（当前无数据时为服务端空表） */
 export async function fetchCourseSubstituteRows(): Promise<FeatureApplyRow[]> {
-  const raw = guardSession(await webFetch('/student/for-std/course-substitute-apply'));
+  const raw = guardSession(await portalRequest('/student/for-std/course-substitute-apply'));
   const rows = parseMappedTables(raw, { require: ['申请理由', '审核状态'] });
   const result: FeatureApplyRow[] = [];
   for (const row of rows) {
@@ -1114,7 +1114,7 @@ export async function fetchCourseSubstituteRows(): Promise<FeatureApplyRow[]> {
 
 /** 放弃成绩申请：「我的放弃成绩申请单」记录列表 */
 export async function fetchGradeAbandonRows(): Promise<FeatureApplyRow[]> {
-  const raw = guardSession(await webFetch('/student/for-std/grade-abandon-apply'));
+  const raw = guardSession(await portalRequest('/student/for-std/grade-abandon-apply'));
   const rows = parseMappedTables(raw, { require: ['申请时间', '审核状态'], exclude: ['操作'] });
   const result: FeatureApplyRow[] = [];
   for (const row of rows) {
@@ -1144,7 +1144,7 @@ export async function fetchGradeAbandonRows(): Promise<FeatureApplyRow[]> {
 
 /** 选择意向导师：导师仓库存量列表（当前为空即服务端无开放导师） */
 export async function fetchTutorWarehouseRows(): Promise<FeatureApplyRow[]> {
-  const raw = guardSession(await webFetch('/student/for-std/select/std-tutor-apply'));
+  const raw = guardSession(await portalRequest('/student/for-std/select/std-tutor-apply'));
   const rows = parseMappedTables(raw, { require: ['导师', '所属部门'] });
   const seen = new Set<string>();
   const result: FeatureApplyRow[] = [];
@@ -1165,7 +1165,7 @@ export async function fetchTutorWarehouseRows(): Promise<FeatureApplyRow[]> {
 
 /** 学籍异动申请：可申请类型卡 + 已申请页签提示 */
 export async function fetchStdAlterationData(): Promise<StdAlterationData> {
-  const raw = guardSession(await webFetch('/student/for-std/std-alteration-apply'));
+  const raw = guardSession(await portalRequest('/student/for-std/std-alteration-apply'));
   const applyTypes: StdAlterationData['applyTypes'] = [];
   const canStart = raw.indexOf('id="canApply"');
   const haveStart = raw.indexOf('id="haveApply"');
@@ -1198,7 +1198,7 @@ export async function fetchStdAlterationData(): Promise<StdAlterationData> {
 
 /** 研究生推免：当前服务端提示信息 */
 export async function fetchRecommendApplyInfo(): Promise<RecommendApplyInfo> {
-  const raw = guardSession(await webFetch('/student/for-std/recommend-student-apply'));
+  const raw = guardSession(await portalRequest('/student/for-std/recommend-student-apply'));
   const body = raw.indexOf('<body') >= 0 ? raw.slice(raw.indexOf('<body')) : raw;
   const clean = normCell(body);
   const note = clean.replace(/^(×\s*)/, '').trim();

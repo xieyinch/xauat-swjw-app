@@ -18,6 +18,7 @@ interface LoginScreenProps {
   onUsernameChange: (v: string) => void;
   onPasswordChange: (v: string) => void;
   onSubmit: () => void;
+  onOpenSchoolLogin: () => void;
   submitting: boolean;
   error: string | null;
 }
@@ -28,6 +29,7 @@ export function LoginScreen({
   onUsernameChange,
   onPasswordChange,
   onSubmit,
+  onOpenSchoolLogin,
   submitting,
   error,
 }: LoginScreenProps) {
@@ -89,9 +91,9 @@ export function LoginScreen({
         ) : null}
 
         <TouchableOpacity
-          style={[styles.button, (submitting || !username || !password) && styles.buttonDisabled]}
+          style={[styles.button, (submitting || !username.trim() || !password) && styles.buttonDisabled]}
           onPress={onSubmit}
-          disabled={submitting || !username || !password}
+          disabled={submitting || !username.trim() || !password}
         >
           {submitting ? (
             <ActivityIndicator color="#fff" />
@@ -100,8 +102,11 @@ export function LoginScreen({
           )}
         </TouchableOpacity>
 
+        <TouchableOpacity disabled={submitting} onPress={onOpenSchoolLogin}>
+          <Text style={styles.schoolLogin}>使用学校认证页面</Text>
+        </TouchableOpacity>
         <Text style={styles.tip}>
-          使用学校统一身份认证账号登录。登录成功后账号密码会保存在设备安全存储区，用于会话过期后自动重新登录；退出登录会清除。
+          使用学校统一身份认证账号登录。学校要求验证码或扫码时，请使用学校认证页面。
         </Text>
       </View>
     </KeyboardAvoidingView>
@@ -190,6 +195,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  schoolLogin: { color: colors.primary, textAlign: 'center', padding: spacing.sm },
   tip: {
     fontSize: 12,
     color: colors.textSecondary,

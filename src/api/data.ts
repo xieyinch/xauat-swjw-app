@@ -1,6 +1,6 @@
 import { SITE, API } from '../config/site';
 import type { CourseTableData, ExamItem, GradeData, MenuCategory, NoticeItem, Semester, StudentInfo } from '../types';
-import { isLoginPageText, webFetch } from './bridge';
+import { isLoginPageText, portalRequest, SessionExpiredError } from './portalClient';
 import {
   extractStudentId,
   extractStudentNameStdNo,
@@ -12,12 +12,7 @@ import {
   parseSemestersFromCourseTable,
 } from './parsers';
 
-export class SessionExpiredError extends Error {
-  constructor() {
-    super('登录已过期，请重新登录');
-    this.name = 'SessionExpiredError';
-  }
-}
+export { SessionExpiredError } from './portalClient';
 
 function guardSession(raw: string): string {
   if (isLoginPageText(raw)) throw new SessionExpiredError();
@@ -26,7 +21,7 @@ function guardSession(raw: string): string {
 
 /** 从课表页面解析可选学期列表 */
 export async function fetchSemesters(): Promise<Semester[]> {
-  const raw = guardSession(await webFetch(API.courseTablePage));
+  const raw = guardSession(await portalRequest(API.courseTablePage));
   return parseSemestersFromCourseTable(raw);
 }
 
@@ -96,13 +91,13 @@ export function rankSemesterCandidates(
 
 /** 学生信息（studentId / 姓名 / 学号） */
 export async function fetchStudentInfo(): Promise<StudentInfo> {
-  const gradePage = guardSession(await webFetch(API.gradePage));
+  const gradePage = guardSession(await portalRequest(API.gradePage));
   const studentId = extractStudentId(gradePage);
   if (!studentId) throw new Error('无法获取学生信息，请重新登录');
   let name = '';
   let stdNo = '';
   try {
-    const examPage = guardSession(await webFetch(API.examPage));
+    const examPage = guardSession(await portalRequest(API.examPage));
     const info = extractStudentNameStdNo(examPage);
     if (info) {
       name = info.name;
@@ -110,7 +105,7 @@ export async function fetchStudentInfo(): Promise<StudentInfo> {
     } else if (studentId) {
       // 多学籍（微专业）下 exam 页变成「学籍信息」选择页，改从按学籍的考试信息页取姓名学号
       const info2 = extractStudentNameStdNo(
-        guardSession(await webFetch(`/student/for-std/exam-arrange/info/${studentId}`)),
+        guardSession(await portalRequest(`/student/for-std/exam-arrange/info/${studentId}`)),
       );
       if (info2) {
         name = info2.name;
@@ -127,10 +122,11 @@ let studentInfoPromise: Promise<StudentInfo> | null = null;
 
 export function getStudentInfoCached(): Promise<StudentInfo> {
   if (!studentInfoPromise) {
-    studentInfoPromise = fetchStudentInfo().catch((e) => {
-      studentInfoPromise = null;
-      throw e;
+    const pending = fetchStudentInfo().catch(error => {
+      if (studentInfoPromise === pending) studentInfoPromise = null;
+      throw error;
     });
+    studentInfoPromise = pending;
   }
   return studentInfoPromise;
 }
@@ -142,7 +138,7 @@ export function clearStudentInfoCache() {
 /** 课表接口原始返回（调试用） */
 export async function fetchCourseTableRaw(semesterId: number): Promise<string> {
   return guardSession(
-    await webFetch(`${API.courseTableGetData}?bizTypeId=2&semesterId=${semesterId}`),
+    await portalRequest(`${API.courseTableGetData}?bizTypeId=2&semesterId=${semesterId}`),
   );
 }
 
@@ -172,20 +168,20 @@ export async function fetchBestCourseTable(): Promise<{ semester: Semester; tabl
 
 export async function fetchGrades(studentId: number, semesterId: number): Promise<GradeData> {
   const raw = guardSession(
-    await webFetch(`/student/for-std/grade/sheet/info/${studentId}?semester=${semesterId}`),
+    await portalRequest(`/student/for-std/grade/sheet/info/${studentId}?semester=${semesterId}`),
   );
   return parseGradeJson(raw, semesterId);
 }
 
 export async function fetchExams(): Promise<ExamItem[]> {
-  const raw = guardSession(await webFetch(API.examPage));
+  const raw = guardSession(await portalRequest(API.examPage));
   const list = parseExamHtml(raw);
   if (list.length) return list;
   // 多学籍（微专业）下考试页变成「学籍信息」选择页，改从按学籍的考试信息页取数据
   try {
     const info = await getStudentInfoCached();
     if (info.studentId) {
-      const raw2 = guardSession(await webFetch(`/student/for-std/exam-arrange/info/${info.studentId}`));
+      const raw2 = guardSession(await portalRequest(`/student/for-std/exam-arrange/info/${info.studentId}`));
       const rows = parseExamHtml(raw2);
       if (rows.length) return rows;
     }
@@ -207,6 +203,6 @@ export async function fetchNotices(): Promise<NoticeItem[]> {
 
 /** 教务系统全部功能菜单（按分类分组） */
 export async function fetchMenu(): Promise<MenuCategory[]> {
-  const raw = guardSession(await webFetch(API.menu));
+  const raw = guardSession(await portalRequest(API.menu));
   return parseMenu(raw);
 }

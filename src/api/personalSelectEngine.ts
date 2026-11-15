@@ -1,5 +1,5 @@
 import type { CourseSelectLesson, CustomSelectSwitch } from '../types';
-import { isLoginPageText, webFetch } from './bridge';
+import { isLoginPageText, portalRequest } from './portalClient';
 import { getStudentInfoCached, SessionExpiredError } from './data';
 
 export interface ApplyLesson extends CourseSelectLesson {
@@ -82,7 +82,7 @@ function postForm(path: string, params: Record<string, string | number | Array<s
       pairs.push(`${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`);
     }
   }
-  return webFetch(path, {
+  return portalRequest(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: pairs.join('&'),
@@ -90,7 +90,7 @@ function postForm(path: string, params: Record<string, string | number | Array<s
 }
 
 function postJson(path: string, body: unknown): Promise<string> {
-  return webFetch(path, {
+  return portalRequest(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -179,14 +179,15 @@ export interface ApplyWorkspace {
 /** 建立个性化选课模块服务端会话（GET switches 落地页）；同会话只一次 */
 export function ensureApplyContext(): Promise<void> {
   if (!applyContextPromise) {
-    applyContextPromise = getStudentInfoCached()
-      .then((info) => webFetch(`/student/for-std/course-select-apply/switches/${info.studentId}`))
+    const pending = getStudentInfoCached()
+      .then((info) => portalRequest(`/student/for-std/course-select-apply/switches/${info.studentId}`))
       .then(guard)
       .then(() => undefined)
-      .catch((e) => {
-        applyContextPromise = null;
-        throw e;
+      .catch(error => {
+        if (applyContextPromise === pending) applyContextPromise = null;
+        throw error;
       });
+    applyContextPromise = pending;
   }
   return applyContextPromise;
 }
@@ -210,7 +211,7 @@ export async function fetchApplyWorkspace(
     `exchangeOpen=${openFlags?.exchangeOpen ?? false}`,
   ].join('&');
   const raw = guard(
-    await webFetch(
+    await portalRequest(
       `/student/for-std/course-select-apply/${info.studentId}/switch/${sw.id}/apply?${q}`,
     ),
   );
@@ -224,7 +225,7 @@ export async function fetchSelectCandidates(semesterId: number): Promise<ApplyLe
   const info = await getStudentInfoCached();
   await ensureApplyContext();
   const raw = guard(
-    await webFetch(
+    await portalRequest(
       `/student/ws/for-std/custom-course-select-apply/all-select-lessons?studentId=${info.studentId}&semesterId=${semesterId}&bizTypeId=2`,
     ),
   );
@@ -238,7 +239,7 @@ export async function fetchRevokeCandidates(semesterId: number): Promise<ApplyLe
   const info = await getStudentInfoCached();
   await ensureApplyContext();
   const raw = guard(
-    await webFetch(
+    await portalRequest(
       `/student/ws/for-std/custom-course-select-apply/selected-lessons?studentId=${info.studentId}&semesterId=${semesterId}&bizTypeId=2&stdRangeType=REVOKE`,
     ),
   );
@@ -336,7 +337,7 @@ export async function fetchAssignees(
     .join(',');
   const info = await getStudentInfoCached();
   const raw = guard(
-    await webFetch(
+    await portalRequest(
       `/student/for-std/course-select-apply/get-assignees?bizTypeId=2&auditType=${auditType}&findAssigneeJson=${encodeURIComponent(
         JSON.stringify({ newLessonIds: lessonIds }),
       )}`,
@@ -383,7 +384,7 @@ export async function submitApply(input: SubmitApplyInput): Promise<SubmitRespon
 
 /** 检查当前能否取消某条申请 */
 export async function checkCanCancel(id: number): Promise<boolean> {
-  const raw = guard(await webFetch(`/student/for-std/course-select-apply/check-in-time?id=${id}`));
+  const raw = guard(await portalRequest(`/student/for-std/course-select-apply/check-in-time?id=${id}`));
   const t = raw.trim();
   if (t === 'true' || t === 'false') return t === 'true';
   try {
@@ -408,7 +409,7 @@ export async function fetchHistoryRows(semesterId: number): Promise<AppliedRow[]
   const info = await getStudentInfoCached();
   await ensureApplyContext();
   const raw = guard(
-    await webFetch(
+    await portalRequest(
       `/student/for-std/course-select-apply/history-record?PARENT_URL=${encodeURIComponent(
         `/for-std/course-select-apply/${info.studentId}/switch/0/apply`,
       )}&semesterId=${semesterId}&studentId=${info.studentId}&bizTypeId=2`,

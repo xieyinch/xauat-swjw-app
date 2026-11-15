@@ -4,7 +4,7 @@ import type {
   CourseSelectRepaired,
   CourseSelectTurn,
 } from '../types';
-import { isLoginPageText, webFetch } from './bridge';
+import { isLoginPageText, portalRequest } from './portalClient';
 import { getStudentInfoCached, SessionExpiredError } from './data';
 
 export interface AddDropOutcome {
@@ -54,7 +54,7 @@ function postForm(path: string, params: Record<string, string | number>): Promis
   const body = Object.keys(params)
     .map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(String(params[k]))}`)
     .join('&');
-  return webFetch(path, {
+  return portalRequest(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
@@ -66,7 +66,7 @@ function isHtmlLike(raw: string): boolean {
 }
 
 function postJson(path: string, body: unknown): Promise<string> {
-  return webFetch(path, {
+  return portalRequest(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -129,7 +129,11 @@ function parseChunkData(raw: string): unknown {
 /** 进入选课模块前建立服务端会话上下文（GET 落地页）；同一会话只做一次 */
 export function ensureCourseSelectContext(): Promise<void> {
   if (!contextPromise) {
-    contextPromise = webFetch('/student/for-std/course-select').then(guard).then(() => undefined);
+    const pending = portalRequest('/student/for-std/course-select').then(guard).then(() => undefined).catch(error => {
+      if (contextPromise === pending) contextPromise = null;
+      throw error;
+    });
+    contextPromise = pending;
   }
   return contextPromise;
 }
@@ -183,7 +187,7 @@ async function fetchSelectedLessons(
 /** 取当前轮次的可开课教学班全量（addable-lessons chunk），按课程分组返回 */
 async function fetchAddableLessonMapByCourse(turnId: number): Promise<Map<number, CourseSelectLesson[]>> {
   const versionRaw = guard(
-    await webFetch(`/student/cache/course-select/version/${turnId}/version.json`),
+    await portalRequest(`/student/cache/course-select/version/${turnId}/version.json`),
   );
   const version = parseJson<{ itemList?: string[] }>(versionRaw, '课程版本');
   const items = Array.isArray(version?.itemList) ? version.itemList : [];
@@ -191,7 +195,7 @@ async function fetchAddableLessonMapByCourse(turnId: number): Promise<Map<number
   const map = new Map<number, CourseSelectLesson[]>();
   for (const item of items) {
     const raw = guard(
-      await webFetch(`/student/cache/course-select/addable-lessons/${turnId}/${item}.json`),
+      await portalRequest(`/student/cache/course-select/addable-lessons/${turnId}/${item}.json`),
     );
     const parsed = parseChunkData(raw);
     if (!Array.isArray(parsed)) throw new Error('课程数据格式异常');

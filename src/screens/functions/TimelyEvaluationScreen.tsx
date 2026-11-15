@@ -1,4 +1,6 @@
-import React, { useRef, useState } from 'react';
+import * as DocumentPicker from 'expo-document-picker';
+import { File } from 'expo-file-system';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SessionExpiredError } from '../../api/data';
 import {
@@ -25,6 +27,70 @@ function Choice({ label, selected, onPress }: { label: string; selected?: boolea
   );
 }
 
+const ATTACHMENT_EXTENSIONS = new Set([
+  'ppt', 'pptx', 'pdf', 'docx', 'xls', 'xlsx', 'doc', 'sxc', 'sxd', 'sxi', 'sxm',
+  'sxw', 'sxg', 'key', 'pages', 'numbers', 'zip', 'rar', '7z', 'tar', 'bz2', 'bz', 'gz',
+  'gif', 'jpeg', 'jpg', 'png', 'bmp', 'json', 'txt', 'html', 'xml',
+]);
+
+function deleteAttachment(file: File | null) {
+  if (!file) return;
+  try { file.delete(); } catch { /* cache cleanup is best effort */ }
+}
+
+function AttachmentInput({ value, onChange }: {
+  value?: EvaluationAnswer['attachment'];
+  onChange: (value?: EvaluationAnswer['attachment']) => void;
+}) {
+  const cached = useRef<File | null>(null);
+  const picking = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      deleteAttachment(cached.current);
+    };
+  }, []);
+  async function pick() {
+    if (picking.current) return;
+    picking.current = true;
+    let next: File | null = null;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ multiple: false, copyToCacheDirectory: true });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      next = asset.file ? null : new File(asset.uri);
+      const file = asset.file ?? next!;
+      if (!mounted.current) return;
+      const extension = asset.name.split('.').pop() ?? '';
+      if (!asset.name.includes('.') || !ATTACHMENT_EXTENSIONS.has(extension)) {
+        throw new Error('学校不支持该文件格式');
+      }
+      if ((asset.size ?? file.size) >= 10 * 1024 * 1024) throw new Error('附件必须小于 10 MB');
+      deleteAttachment(cached.current);
+      cached.current = next;
+      next = null;
+      onChange({ name: asset.name, file });
+    } catch (error) {
+      if (mounted.current) Alert.alert('无法选择附件', error instanceof Error ? error.message : '请重试');
+    } finally {
+      deleteAttachment(next);
+      picking.current = false;
+    }
+  }
+  return (
+    <View style={styles.group}>
+      <Choice label={value ? value.name : '选择附件（小于 10 MB）'} onPress={() => void pick()} />
+      {value && <Choice label="移除附件" onPress={() => {
+        deleteAttachment(cached.current);
+        cached.current = null;
+        onChange();
+      }} />}
+    </View>
+  );
+}
+
 function QuestionInput({ question, answer, change }: {
   question: SurveyQuestion; answer: EvaluationAnswer; change: (value: EvaluationAnswer) => void;
 }) {
@@ -34,7 +100,7 @@ function QuestionInput({ question, answer, change }: {
   return (
     <View style={styles.card}>
       <Text style={styles.heading}>{title}</Text>
-      {question.type === 'upload' && <Text style={styles.muted}>附件题请在教务网页填写。</Text>}
+      {question.type === 'upload' && <AttachmentInput value={answer.attachment} onChange={attachment => change({ ...answer, attachment })} />}
       {question.type === 'multiple' && !!question.maxOptionCount && (
         <Text style={styles.muted}>最多选 {question.maxOptionCount} 项</Text>
       )}
@@ -101,7 +167,7 @@ type EvaluationSession = Awaited<ReturnType<typeof fetchEvaluationTasks>>;
 
 export function EvaluationForm({
   title, courseName, teacherName, surveyId, token, permissions, permissionPrefix,
-  buildForm, submitForm, onBack, onDone, onSessionExpired, onOpenWeb,
+  buildForm, submitForm, onBack, onDone, onSessionExpired, loadSurvey = fetchEvaluationSurvey,
 }: {
   title: string;
   courseName: string;
@@ -110,15 +176,15 @@ export function EvaluationForm({
   token: string;
   permissions: string[];
   permissionPrefix: 'timely-evaluation' | 'summative-evaluation';
-  buildForm: (survey: EvaluationSurvey, answers: Record<string, EvaluationAnswer>, anonymity: boolean) => FormData;
-  submitForm: (form: FormData, anonymity: boolean) => Promise<unknown>;
+  buildForm: (survey: EvaluationSurvey, answers: Record<string, EvaluationAnswer>, anonymity: boolean) => FormData | string;
+  submitForm: (form: FormData | string, anonymity: boolean) => Promise<unknown>;
   onBack: () => void;
   onDone: () => void;
   onSessionExpired: () => void;
-  onOpenWeb?: () => void;
+  loadSurvey?: typeof fetchEvaluationSurvey;
 }) {
   const survey = useAsyncData({
-    loader: () => fetchEvaluationSurvey(token, surveyId),
+    loader: () => loadSurvey(token, surveyId),
     deps: [token, surveyId],
   });
   const [answers, setAnswers] = useState<Record<string, EvaluationAnswer>>({});
@@ -129,7 +195,7 @@ export function EvaluationForm({
 
   function confirm(anonymity: boolean) {
     if (!survey.data || sending.current || checkRequired) return;
-    let form: FormData;
+    let form: FormData | string;
     try {
       form = buildForm(survey.data, answers, anonymity);
     } catch (error) {
@@ -172,8 +238,6 @@ export function EvaluationForm({
           ))}
           {checkRequired ? (
             <Choice label="返回并刷新待评列表" onPress={onBack} />
-          ) : questions.some(question => question.type === 'upload') ? (
-            onOpenWeb && <Choice label="打开教务网页" onPress={onOpenWeb} />
           ) : questions.some(question => question.type !== 'header') && (
             <View style={styles.choices}>
               {permissions.includes(permissionPrefix + ':submit') && <Choice label={busy ? '提交中…' : '提交'} onPress={() => confirm(false)} />}
@@ -263,11 +327,10 @@ export function TimelyEvaluationScreen({ onClose, onSessionExpired, openWebPage 
         teacherName={task.evaluatedTeacher.person.nameZh}
         surveyId={surveyId} token={token} permissions={permissions} permissionPrefix="timely-evaluation"
         buildForm={(survey, answers, anonymity) => buildEvaluationSubmission(task, surveyId, survey, answers, anonymity)}
-        submitForm={form => submitEvaluation(token, form)}
+        submitForm={form => submitEvaluation(token, form as FormData)}
         onBack={back}
         onDone={() => { back(); Alert.alert('评教已提交'); }}
         onSessionExpired={onSessionExpired}
-        onOpenWeb={openWebPage && (() => openWebPage('学生即时性评价', TIMELY_EVALUATION_PATH))}
       />
     );
   }

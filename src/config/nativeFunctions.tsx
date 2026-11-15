@@ -15,6 +15,7 @@ import { StudentInfoScreen } from '../screens/functions/StudentInfoScreen';
 import { TutorScreen } from '../screens/functions/TutorScreen';
 import { TutorSelectResultScreen } from '../screens/functions/TutorSelectResultScreen';
 import { SummativeEvaluationScreen } from '../screens/functions/SummativeEvaluationScreen';
+import { TeachingFeedbackScreen } from '../screens/functions/TeachingFeedbackScreen';
 import { TimelyEvaluationScreen } from '../screens/functions/TimelyEvaluationScreen';
 import { TutorEvaluationScreen } from '../screens/functions/TutorEvaluationScreen';
 import { DegreeApplyScreen } from '../screens/functions/DegreeApplyScreen';
@@ -57,6 +58,7 @@ export const NATIVE_FUNCTIONS: Record<string, React.ComponentType<NativeFunction
   'for-std-my-evaluation-result:menu': EvaluationResultScreen,
   'for-std-guidance-record:menu': GuidanceRecordScreen,
   'for-std-evaluation:menu': SummativeEvaluationScreen,
+  'for-std-teaching-feedback:menu': TeachingFeedbackScreen,
   'for-std-evaluation-timely:menu': TimelyEvaluationScreen,
   'for-std-evaluation-index-result:menu': TutorEvaluationScreen,
   'for-std-degree-apply:menu': DegreeApplyScreen,
@@ -91,6 +93,7 @@ const HREF_TO_CODE: Record<string, string> = {
   '/student/for-std/my-evaluation-result': 'for-std-my-evaluation-result:menu',
   '/student/for-std/guidance-record': 'for-std-guidance-record:menu',
   '/student/for-std/evaluation/summative': 'for-std-evaluation:menu',
+  '/student/for-std/teaching-feedback': 'for-std-teaching-feedback:menu',
   '/student/for-std/evaluation/timely': 'for-std-evaluation-timely:menu',
   '/student/for-std/evaluation-index-result': 'for-std-evaluation-index-result:menu',
   '/student/for-std/degree-apply': 'for-std-degree-apply:menu',

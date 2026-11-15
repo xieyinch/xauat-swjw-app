@@ -38,7 +38,8 @@ function deleteAttachment(file: File | null) {
   try { file.delete(); } catch { /* cache cleanup is best effort */ }
 }
 
-function AttachmentInput({ value, onChange }: {
+export function AttachmentInput({ value, onChange, extensions = ATTACHMENT_EXTENSIONS }: {
+  extensions?: ReadonlySet<string>;
   value?: EvaluationAnswer['attachment'];
   onChange: (value?: EvaluationAnswer['attachment']) => void;
 }) {
@@ -64,7 +65,7 @@ function AttachmentInput({ value, onChange }: {
       const file = asset.file ?? next!;
       if (!mounted.current) return;
       const extension = asset.name.split('.').pop() ?? '';
-      if (!asset.name.includes('.') || !ATTACHMENT_EXTENSIONS.has(extension)) {
+      if (!asset.name.includes('.') || !extensions.has(extension)) {
         throw new Error('学校不支持该文件格式');
       }
       if ((asset.size ?? file.size) >= 10 * 1024 * 1024) throw new Error('附件必须小于 10 MB');

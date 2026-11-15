@@ -67,7 +67,7 @@ function request(url: string, init?: Parameters<typeof fetch>[1]) {
   return fetch(url, { ...init, signal: AbortSignal.timeout(20000), redirect: 'manual', credentials: 'omit' });
 }
 
-async function api<T>(path: string, token?: string, body?: FormData | string, post = false): Promise<T> {
+export async function evaluationRequest<T>(path: string, token?: string, body?: FormData | string, post = false): Promise<T> {
   const response = await request(API_BASE + path, {
     method: post || body ? 'POST' : 'GET',
     body,
@@ -114,24 +114,24 @@ export async function fetchEvaluationSession(path = TIMELY_EVALUATION_PATH) {
   const ticket = new URLSearchParams(redirect.hash.slice(prefix.length)).get('token');
   if (!ticket) throw new Error('学校评教入口未返回登录凭证');
 
-  const account = await api<{ token: string }>('/evaluation/account/update-account-by-token?' + new URLSearchParams({ token: ticket }), undefined, undefined, true);
+  const account = await evaluationRequest<{ token: string }>('/evaluation/account/update-account-by-token?' + new URLSearchParams({ token: ticket }), undefined, undefined, true);
   if (!account?.token) throw new Error('学校评教系统未返回会话');
   return account.token;
 }
 
 export async function fetchEvaluationTasks() {
   const token = await fetchEvaluationSession();
-  const semester = await api<{ id: Id }>('/evaluation/base/current-semester', token);
+  const semester = await evaluationRequest<{ id: Id }>('/evaluation/base/current-semester', token);
   if (semester?.id == null) throw new Error('学校评教系统未返回当前学期');
   const [weeks, permissions] = await Promise.all([
-    api<EvaluationWeek[] | Record<string, EvaluationWeek> | null>('/student/immediate-evaluation/task/' + encodeURIComponent(semester.id), token),
-    api<string[]>('/evaluation/permissions', token),
+    evaluationRequest<EvaluationWeek[] | Record<string, EvaluationWeek> | null>('/student/immediate-evaluation/task/' + encodeURIComponent(semester.id), token),
+    evaluationRequest<string[]>('/evaluation/permissions', token),
   ]);
   return { token, semesterId: semester.id, weeks: Object.values(weeks ?? {}).sort((a, b) => b.week - a.week), permissions };
 }
 
 export function fetchEvaluationSurvey(token: string, id: Id) {
-  return api<EvaluationSurvey>('/evaluation/survey/' + encodeURIComponent(id), token);
+  return evaluationRequest<EvaluationSurvey>('/evaluation/survey/' + encodeURIComponent(id), token);
 }
 
 export function surveyQuestions(survey: EvaluationSurvey): SurveyQuestion[] {
@@ -241,7 +241,7 @@ export function buildSurveyGroupSubmission(
 }
 
 export function submitEvaluation(token: string, form: FormData) {
-  return api<unknown>(RESULT_PATH, token, form);
+  return evaluationRequest<unknown>(RESULT_PATH, token, form);
 }
 
 export type EvaluationResult = {
@@ -259,12 +259,12 @@ type EvaluationResultDetail = {
 };
 
 export async function fetchEvaluationHistory(token: string, semesterId: Id) {
-  const records = await api<EvaluationResult[] | null>('/student/immediate-evaluation/result-list/' + encodeURIComponent(semesterId), token);
+  const records = await evaluationRequest<EvaluationResult[] | null>('/student/immediate-evaluation/result-list/' + encodeURIComponent(semesterId), token);
   return (records ?? []).slice().sort((a, b) => b.date.localeCompare(a.date));
 }
 
 export function fetchEvaluationResult(token: string, id: Id) {
-  return api<EvaluationResultDetail>(RESULT_PATH + '/' + encodeURIComponent(id), token);
+  return evaluationRequest<EvaluationResultDetail>(RESULT_PATH + '/' + encodeURIComponent(id), token);
 }
 
 export type SummativeTask = {
@@ -293,17 +293,17 @@ type SummativeConfig = {
 export async function fetchSummativeSession() {
   const token = await fetchEvaluationSession(SUMMATIVE_EVALUATION_PATH);
   const [current, terms, config, permissions] = await Promise.all([
-    api<EvaluationTerm>('/evaluation/base/current-semester', token),
-    api<EvaluationTerm[]>('/evaluation/base/semesters', token),
-    api<SummativeConfig>(SUMMATIVE_API + '/config', token),
-    api<string[]>('/evaluation/permissions', token),
+    evaluationRequest<EvaluationTerm>('/evaluation/base/current-semester', token),
+    evaluationRequest<EvaluationTerm[]>('/evaluation/base/semesters', token),
+    evaluationRequest<SummativeConfig>(SUMMATIVE_API + '/config', token),
+    evaluationRequest<string[]>('/evaluation/permissions', token),
   ]);
-  const read = config.show ? await api<string | boolean>('/evaluation/account-setting/get-setting?keyPrefix=hasRead', token) : true;
+  const read = config.show ? await evaluationRequest<string | boolean>('/evaluation/account-setting/get-setting?keyPrefix=hasRead', token) : true;
   return { token, current, terms, config, permissions, read: read === true || read === 'true' };
 }
 
 export async function acknowledgeSummativeNotice(token: string) {
-  await api<unknown>('/evaluation/account-setting/save-setting', token, JSON.stringify(['hasRead', true]));
+  await evaluationRequest<unknown>('/evaluation/account-setting/save-setting', token, JSON.stringify(['hasRead', true]));
 }
 
 export async function fetchSummativeTasks(token: string, term: Id, bySurvey = false) {
@@ -311,24 +311,24 @@ export async function fetchSummativeTasks(token: string, term: Id, bySurvey = fa
   const root = SUMMATIVE_API + (bySurvey ? '/survey-task' : '');
   const taskPath = bySurvey ? '/semester/' : '/task/semester/';
   const [tasks, results] = await Promise.all([
-    api<SummativeTask[] | null>(root + taskPath + id, token),
-    api<SummativeTask[] | null>(root + '/results/semester/' + id, token),
+    evaluationRequest<SummativeTask[] | null>(root + taskPath + id, token),
+    evaluationRequest<SummativeTask[] | null>(root + '/results/semester/' + id, token),
   ]);
   return { tasks: tasks ?? [], results: results ?? [] };
 }
 
 export async function fetchSummativeResult(token: string, id: Id) {
-  const result = await api<EvaluationResultDetail & { scoreConfig: EvaluationResultDetail['displayConfig'] }>('/evaluation/summative/result/' + encodeURIComponent(id), token);
+  const result = await evaluationRequest<EvaluationResultDetail & { scoreConfig: EvaluationResultDetail['displayConfig'] }>('/evaluation/summative/result/' + encodeURIComponent(id), token);
   return { ...result, displayConfig: result.scoreConfig };
 }
 
 export function submitSummativeEvaluation(token: string, form: FormData, anonymity: boolean) {
   const path = anonymity ? '/anonymity-result' : '/result';
-  return api<unknown>(SUMMATIVE_API + path, token, form);
+  return evaluationRequest<unknown>(SUMMATIVE_API + path, token, form);
 }
 
 export async function fetchSummativeSurveyGroup(token: string, surveyId: Id, term: Id, taskId: Id): Promise<EvaluationSurvey> {
-  const group = await api<{
+  const group = await evaluationRequest<{
     survey: EvaluationSurvey & { questions: (Question & { type: string; categoryName?: string })[] };
     taskList: SummativeTask[];
   }>(SUMMATIVE_API + '/survey-task/survey/' + encodeURIComponent(surveyId) + '/semester/' + encodeURIComponent(term), token);
@@ -347,5 +347,5 @@ export async function fetchSummativeSurveyGroup(token: string, surveyId: Id, ter
 }
 
 export function submitSummativeSurveyGroup(token: string, body: string) {
-  return api<unknown>(SUMMATIVE_API + '/survey-task/result', token, body);
+  return evaluationRequest<unknown>(SUMMATIVE_API + '/survey-task/result', token, body);
 }

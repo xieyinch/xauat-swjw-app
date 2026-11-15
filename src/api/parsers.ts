@@ -298,7 +298,15 @@ export function parseMenu(raw: string): MenuCategory[] {
   try {
     arr = JSON.parse(raw);
   } catch {
-    return [];
+    // Spring's menu endpoint also serves the same rows as Jackson XML.
+    if (!/<List(?:\s[^>]*)?>[\s\S]*<\/List>/i.test(raw)) return [];
+    arr = [...raw.matchAll(/<item(?:\s[^>]*)?>([\s\S]*?)<\/item>/gi)].map(([, item]) => {
+      const fields = ['id', 'parentId', 'title', 'href', 'permCode'];
+      return Object.fromEntries(fields.map(field => {
+        const value = new RegExp(`<${field}>([\\s\\S]*?)<\\/${field}>`, 'i').exec(item)?.[1] ?? '';
+        return [field, stripHtmlSafe(value)];
+      }));
+    });
   }
   if (!Array.isArray(arr)) return [];
   const all = arr.map((m, idx) => ({

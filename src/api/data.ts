@@ -203,6 +203,6 @@ export async function fetchNotices(): Promise<NoticeItem[]> {
 
 /** 教务系统全部功能菜单（按分类分组） */
 export async function fetchMenu(): Promise<MenuCategory[]> {
-  const raw = guardSession(await portalRequest(API.menu));
+  const raw = guardSession(await portalRequest(API.menu, { headers: { Accept: 'application/json' } }));
   return parseMenu(raw);
 }

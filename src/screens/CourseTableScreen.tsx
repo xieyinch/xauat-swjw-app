@@ -67,6 +67,7 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [debugVisible, setDebugVisible] = useState(false);
   const [debugText, setDebugText] = useState('');
+  const closeDebug = () => { setDebugVisible(false); setDebugText(''); };
 
   const openDebug = useCallback(async () => {
     if (semesterId == null) return;
@@ -380,13 +381,13 @@ export function CourseTableScreen({ onSessionExpired, onClose }: Props) {
         visible={debugVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setDebugVisible(false)}
+        onRequestClose={closeDebug}
       >
         <View style={styles.debugMask}>
           <View style={styles.debugPanel}>
             <View style={styles.debugHeader}>
               <Text style={styles.debugTitle}>课表接口原始数据</Text>
-              <TouchableOpacity onPress={() => setDebugVisible(false)}>
+              <TouchableOpacity onPress={closeDebug}>
                 <Ionicons name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>

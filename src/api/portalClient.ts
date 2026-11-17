@@ -25,7 +25,7 @@ export function isLoginPageText(text: string) {
   return /id=["'](?:pwdFromId|pwdEncryptSalt)["']|<title>\s*登入页面\s*<\/title>/.test(text.slice(0, 32000));
 }
 
-type RequestOptions = { method?: string; body?: string; headers?: Record<string, string> };
+type RequestOptions = { method?: string; body?: string | FormData; headers?: Record<string, string> };
 
 export async function schoolRequest<T>(url: URL, init: RequestOptions, read: (response: Awaited<ReturnType<typeof fetch>>) => Promise<T>) {
   if (url.origin !== SITE.swjw && url.origin !== authOrigin) throw new Error('学校请求地址无效');

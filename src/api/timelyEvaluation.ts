@@ -1,6 +1,5 @@
-import { fetch } from 'expo/fetch';
-import { ANDROID_CHROME_USER_AGENT, SITE } from '../config/site';
-import { isLoginPageText, isPortalLoginUrl, schoolRequest, SessionExpiredError } from './portalClient';
+import { SITE } from '../config/site';
+import { isLoginPageText, isPortalLoginUrl, portalRequest, schoolRequest, SessionExpiredError } from './portalClient';
 
 export const TIMELY_EVALUATION_PATH = '/student/for-std/evaluation/timely';
 export const SUMMATIVE_EVALUATION_PATH = '/student/for-std/evaluation/summative';
@@ -61,30 +60,41 @@ export type EvaluationSurvey = Partial<Record<keyof typeof questionGroups, Quest
 };
 export type EvaluationAnswer = { selected?: string[]; custom?: Record<string, string>; text?: string; blanks?: string[]; rating?: number; attachment?: { name: string; file: Blob } };
 
-function request(url: string, init?: Parameters<typeof fetch>[1]) {
-  return fetch(url, { ...init, signal: AbortSignal.timeout(20000), redirect: 'manual', credentials: 'omit' });
+class EvaluationSessionError extends Error {
+  constructor() {
+    super('评教系统暂未通过认证，请重试或打开教务网页');
+    this.name = 'EvaluationSessionError';
+  }
 }
 
 export async function evaluationRequest<T>(path: string, token?: string, body?: FormData | string, post = false): Promise<T> {
-  const response = await request(API_BASE + path, {
+  const url = new URL(API_BASE + path);
+  return schoolRequest(url, {
     method: post || body ? 'POST' : 'GET',
     body,
     headers: {
       Accept: 'application/json',
       ...(typeof body === 'string' ? { 'Content-Type': 'application/json' } : {}),
-      'User-Agent': ANDROID_CHROME_USER_AGENT,
       ...(token ? { Authorization: token } : {}),
     },
+  }, async response => {
+    const location = response.headers.get('location');
+    if (response.status === 401 || (response.status >= 300 && response.status < 400 &&
+        location && isPortalLoginUrl(new URL(location, url)))) {
+      // This API uses a separate token. Its rejection says nothing about the portal session.
+      throw new EvaluationSessionError();
+    }
+    if (!response.headers.get('content-type')?.includes('json')) {
+      const text = await response.text();
+      if (isLoginPageText(text)) throw new EvaluationSessionError();
+      throw new Error('评教接口返回了无法识别的响应');
+    }
+    const payload = await response.json() as { result: number | boolean; data: T; message?: string };
+    if (!response.ok || payload.result || !('result' in payload)) {
+      throw new Error(payload.message || '评教请求失败');
+    }
+    return payload.data;
   });
-  if (response.status === 401) throw new SessionExpiredError();
-  if (!response.headers.get('content-type')?.includes('json')) {
-    throw new Error('评教接口返回了无法识别的响应');
-  }
-  const payload = await response.json() as { result: number | boolean; data: T; message?: string };
-  if (!response.ok || payload.result || !('result' in payload)) {
-    throw new Error(payload.message || '评教请求失败');
-  }
-  return payload.data;
 }
 
 function evaluationTicket(target: URL) {
@@ -127,10 +137,10 @@ async function fetchEvaluationTicket(entry: URL) {
       location: result.headers.get('location'),
       body: await result.text(),
     }));
-    if (response.status === 401 || isLoginPageText(response.body)) throw new SessionExpiredError();
+    if (response.status === 401 || isLoginPageText(response.body)) throw new EvaluationSessionError();
     if (response.status >= 300 && response.status < 400 && response.location) {
       const next = new URL(response.location, current);
-      if (isPortalLoginUrl(next)) throw new SessionExpiredError();
+      if (isPortalLoginUrl(next)) throw new EvaluationSessionError();
       const ticket = evaluationTicket(next);
       if (ticket) return ticket;
       // Follow only school portal intermediaries. Never send school cookies to outside URLs.
@@ -149,7 +159,19 @@ async function fetchEvaluationTicket(entry: URL) {
 }
 
 export async function fetchEvaluationSession(path = TIMELY_EVALUATION_PATH) {
-  const ticket = await fetchEvaluationTicket(new URL(path, SITE.swjw));
+  let ticket: string;
+  try {
+    ticket = await fetchEvaluationTicket(new URL(path, SITE.swjw));
+  } catch (error) {
+    if (!(error instanceof EvaluationSessionError)) throw error;
+    // Only the portal itself can confirm that the school account needs to sign in again.
+    try {
+      await portalRequest(SITE.portal);
+    } catch (portalError) {
+      if (portalError instanceof SessionExpiredError) throw portalError;
+    }
+    throw error;
+  }
   const account = await evaluationRequest<{ token: string }>('/evaluation/account/update-account-by-token?' + new URLSearchParams({ token: ticket }), undefined, undefined, true);
   if (!account?.token) throw new Error('学校评教系统未返回会话');
   return account.token;
